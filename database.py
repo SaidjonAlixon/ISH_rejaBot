@@ -7,7 +7,14 @@ from config import DEFAULT_TIMEZONE
 
 class Database:
     def __init__(self, db_path: str = "ishbot.db"):
-        self.db_path = db_path
+        # Railway da database path ni tekshirish
+        import os
+        if os.getenv('RAILWAY_ENVIRONMENT'):
+            # Railway da persistent storage uchun
+            self.db_path = "/data/ishbot.db"
+            os.makedirs("/data", exist_ok=True)
+        else:
+            self.db_path = db_path
         self.init_database()
     
     def init_database(self):

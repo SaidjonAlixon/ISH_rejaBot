@@ -21,7 +21,14 @@ class BaseHandler:
             
             # Super Admin ID tekshirish
             from config import SUPER_ADMIN_TELEGRAM_ID
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            logger.info(f"Checking SUPER_ADMIN_TELEGRAM_ID: {SUPER_ADMIN_TELEGRAM_ID} (type: {type(SUPER_ADMIN_TELEGRAM_ID)})")
+            logger.info(f"User ID: {user.id} (type: {type(user.id)})")
+            
             role = UserRole.SUPER_ADMIN if SUPER_ADMIN_TELEGRAM_ID and str(user.id) == str(SUPER_ADMIN_TELEGRAM_ID) else UserRole.WORKER
+            logger.info(f"Assigned role: {role}")
             
             db_user_id = self.db.create_user(
                 telegram_id=user.id,

@@ -8,7 +8,8 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 DATABASE_URL = 'sqlite:///ishbot.db'
 
 # Super Admin ID (ixtiyoriy)
-SUPER_ADMIN_TELEGRAM_ID = os.getenv('SUPER_ADMIN_TELEGRAM_ID')
+SUPER_ADMIN_TELEGRAM_ID_STR = os.getenv('SUPER_ADMIN_TELEGRAM_ID')
+SUPER_ADMIN_TELEGRAM_ID = int(SUPER_ADMIN_TELEGRAM_ID_STR) if SUPER_ADMIN_TELEGRAM_ID_STR else None
 
 # Tashkilot sozlamalari
 DEFAULT_TIMEZONE = 'Asia/Tashkent'
