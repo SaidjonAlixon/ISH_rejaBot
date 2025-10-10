@@ -176,9 +176,9 @@ class Database:
         """
         user_id = self.execute_update(query, (telegram_id, full_name, username, phone, role))
         
-        # Agar Super Admin ID belgilangan bo'lsa va bu foydalanuvchi Super Admin bo'lsa
+        # Agar Super Admin ID belgilangan bo'lsa va bu foydalanuvchi hali SUPER_ADMIN emas bo'lsa
         from config import SUPER_ADMIN_TELEGRAM_ID
-        if SUPER_ADMIN_TELEGRAM_ID and str(telegram_id) == str(SUPER_ADMIN_TELEGRAM_ID):
+        if SUPER_ADMIN_TELEGRAM_ID and str(telegram_id) == str(SUPER_ADMIN_TELEGRAM_ID) and role != 'SUPER_ADMIN':
             self.update_user_role(user_id, 'SUPER_ADMIN')
             self.add_audit_log(user_id, 'AUTO_SUPER_ADMIN', f"Avtomatik Super Admin yaratildi: {full_name}")
         

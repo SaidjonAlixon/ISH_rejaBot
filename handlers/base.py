@@ -18,15 +18,20 @@ class BaseHandler:
         if not db_user:
             # Yangi foydalanuvchi yaratish
             full_name = "Yangi Foydalanuvchi"
+            
+            # Super Admin ID tekshirish
+            from config import SUPER_ADMIN_TELEGRAM_ID
+            role = UserRole.SUPER_ADMIN if SUPER_ADMIN_TELEGRAM_ID and str(user.id) == str(SUPER_ADMIN_TELEGRAM_ID) else UserRole.WORKER
+            
             db_user_id = self.db.create_user(
                 telegram_id=user.id,
                 full_name=full_name,
                 username=user.username,
-                role=UserRole.WORKER
+                role=role
             )
             # Yangi yaratilgan foydalanuvchini olish
             db_user = self.db.get_user_by_telegram_id(user.id)
-            self.db.add_audit_log(db_user['id'], 'USER_REGISTERED', f"Yangi foydalanuvchi yaratildi")
+            self.db.add_audit_log(db_user['id'], 'USER_REGISTERED', f"Yangi foydalanuvchi yaratildi (Rol: {role})")
         
         return db_user
     
