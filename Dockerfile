@@ -28,8 +28,5 @@ RUN useradd --create-home --shell /bin/bash app
 RUN chown -R app:app /app
 USER app
 
-# Expose port
-EXPOSE 3000
-
 # Run the application
 CMD ["python", "main.py"]
