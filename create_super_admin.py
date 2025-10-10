@@ -56,8 +56,8 @@ def create_super_admin():
         print(f"🆔 ID: {user_id}")
         print(f"👤 Ism: {full_name}")
         print(f"🆔 Telegram ID: {telegram_id}")
-        print(f"📱 Username: @{username or 'Yo\'q'}")
-        print(f"📞 Telefon: {phone or 'Yo\'q'}")
+        print(f"📱 Username: @{username or 'Yoq'}")
+        print(f"📞 Telefon: {phone or 'Yoq'}")
         print(f"👑 Rol: SUPER_ADMIN")
         
         # Audit log

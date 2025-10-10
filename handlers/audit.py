@@ -36,7 +36,7 @@ class AuditHandler(BaseHandler):
 {i}. {action_emoji} <b>{log['action']}</b>
 👤 <b>Foydalanuvchi:</b> {log['full_name']} ({log['role']})
 📅 <b>Vaqt:</b> {format_datetime(log['created_at'])}
-📝 <b>Tafsilot:</b> {log['details'] or 'Yo\'q'}
+📝 <b>Tafsilot:</b> {log['details'] or 'Yoq'}
 
 """
         

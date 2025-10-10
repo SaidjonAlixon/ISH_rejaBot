@@ -42,7 +42,7 @@ def setup_super_admin():
             
             print(f"✅ {selected_user['full_name']} Super Admin qilindi!")
             print(f"🆔 Telegram ID: {selected_user['telegram_id']}")
-            print(f"📱 Username: @{selected_user['username'] or 'Yo\'q'}")
+            print(f"📱 Username: @{selected_user['username'] or 'Yoq'}")
             
             # Audit log
             db.add_audit_log(

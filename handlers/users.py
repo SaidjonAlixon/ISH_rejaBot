@@ -137,7 +137,7 @@ Yangi ishchining Telegram ID yoki username'ini yuboring:
 
 👤 <b>Foydalanuvchi:</b> {target_user['full_name']}
 🆔 <b>Telegram ID:</b> {target_user['telegram_id']}
-📱 <b>Username:</b> @{target_user['username'] or 'Yo\'q'}
+📱 <b>Username:</b> @{target_user['username'] or 'Yoq'}
 🎭 <b>Yangi rol:</b> {role_name}
         """
         
@@ -169,7 +169,7 @@ Yangi ishchining Telegram ID yoki username'ini yuboring:
             
             text += f"""
 {i}. {role_emoji} <b>{u['full_name']}</b> {status_emoji}
-🆔 ID: {u['telegram_id']} | 📱 @{u['username'] or 'Yo\'q'}
+🆔 ID: {u['telegram_id']} | 📱 @{u['username'] or 'Yoq'}
 📞 {phone} | 🎭 {u['role']}
 
 """
@@ -218,7 +218,7 @@ Yangi ishchining Telegram ID yoki username'ini yuboring:
 
 {role_emoji} <b>Ism:</b> {target_user['full_name']}
 🆔 <b>Telegram ID:</b> {target_user['telegram_id']}
-📱 <b>Username:</b> @{target_user['username'] or 'Yo\'q'}
+📱 <b>Username:</b> @{target_user['username'] or 'Yoq'}
 📞 <b>Telefon:</b> {phone}
 🎭 <b>Rol:</b> {target_user['role']}
 {status_emoji} <b>Holat:</b> {'Faol' if target_user['is_active'] else 'Nofaol'}

@@ -232,18 +232,18 @@ Statusni tanlang:
                     latest_extension = extensions[0]
                     task['original_deadline'] = latest_extension.get('old_deadline', task['deadline'])
                     task['deadline_extended_by'] = latest_extension.get('extended_by_name', 'Noma\'lum')
-                    task['deadline_extension_reason'] = latest_extension.get('reason', 'Yo\'q')
+                    task['deadline_extension_reason'] = latest_extension.get('reason', 'Yoq')
                     task['deadline_extension_hours'] = latest_extension.get('extension_hours', 0)
                 else:
                     task['original_deadline'] = task['deadline']
                     task['deadline_extended_by'] = 'Uzaytirilmagan'
-                    task['deadline_extension_reason'] = 'Yo\'q'
+                    task['deadline_extension_reason'] = 'Yoq'
                     task['deadline_extension_hours'] = 0
             except Exception as e:
                 # Xatolik bo'lsa, default qiymatlarni qo'yish
                 task['original_deadline'] = task['deadline']
                 task['deadline_extended_by'] = 'Uzaytirilmagan'
-                task['deadline_extension_reason'] = 'Yo\'q'
+                task['deadline_extension_reason'] = 'Yoq'
                 task['deadline_extension_hours'] = 0
         
         return tasks
@@ -317,17 +317,17 @@ Statusni tanlang:
                     latest_extension = extensions[0]
                     task['original_deadline'] = latest_extension.get('old_deadline', task['deadline'])
                     task['deadline_extended_by'] = latest_extension.get('extended_by_name', 'Noma\'lum')
-                    task['deadline_extension_reason'] = latest_extension.get('reason', 'Yo\'q')
+                    task['deadline_extension_reason'] = latest_extension.get('reason', 'Yoq')
                     task['deadline_extension_hours'] = latest_extension.get('extension_hours', 0)
                 else:
                     task['original_deadline'] = task['deadline']
                     task['deadline_extended_by'] = 'Uzaytirilmagan'
-                    task['deadline_extension_reason'] = 'Yo\'q'
+                    task['deadline_extension_reason'] = 'Yoq'
                     task['deadline_extension_hours'] = 0
             except Exception as e:
                 task['original_deadline'] = task['deadline']
                 task['deadline_extended_by'] = 'Uzaytirilmagan'
-                task['deadline_extension_reason'] = 'Yo\'q'
+                task['deadline_extension_reason'] = 'Yoq'
                 task['deadline_extension_hours'] = 0
         
         return tasks
@@ -381,8 +381,8 @@ Statusni tanlang:
                 'Original deadline': format_datetime(task.get('original_deadline', task['deadline'])),
                 'Joriy deadline': format_datetime(task['deadline']),
                 'Deadline uzaytirgan': task.get('deadline_extended_by', 'Uzaytirilmagan'),
-                'Uzaytirish sababi': task.get('deadline_extension_reason', 'Yo\'q'),
-                'Uzaytirish soati': f"{task.get('deadline_extension_hours', 0)} soat" if task.get('deadline_extension_hours', 0) > 0 else 'Yo\'q',
+                'Uzaytirish sababi': task.get('deadline_extension_reason', 'Yoq'),
+                'Uzaytirish soati': f"{task.get('deadline_extension_hours', 0)} soat" if task.get('deadline_extension_hours', 0) > 0 else 'Yoq',
                 'Ishchi tugatgan vaqt': format_datetime(task['completed_at']) if task['completed_at'] else 'Tugatilmagan',
                 'Admin tasdiqlagan vaqt': format_datetime(task['approved_at']) if task['approved_at'] else 'Tasdiqlanmagan',
                 'Rad etilgan vaqt': format_datetime(task.get('rejected_at')) if task.get('rejected_at') else 'Rad etilmagan',
@@ -392,7 +392,7 @@ Statusni tanlang:
                 'Ishchi telefon': task['assigned_phone'] or 'Kiritilmagan',
                 'Tasdiqlovchi': task['approver_name'] or 'Tasdiqlanmagan',
                 'Rad etuvchi': task['rejector_name'] or 'Rad etilmagan',
-                'Jarima': '💰 Ha' if task['is_penalized'] else '✅ Yo\'q',
+                'Jarima': '💰 Ha' if task['is_penalized'] else '✅ Yoq',
                 'Jarima miqdori': f"{task['penalty_amount']:,} UZS" if task['penalty_amount'] > 0 else '0 UZS',
                 'Yaratilgan': format_datetime(task['created_at'])
             })

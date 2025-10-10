@@ -249,7 +249,7 @@ Savollar bo'lsa, administratorga murojaat qiling.
 🆔 <b>Telegram ID ma'lumotlari</b>
 
 👤 <b>Sizning ID:</b> <code>{update.effective_user.id}</code>
-📱 <b>Username:</b> @{update.effective_user.username or 'Yo\'q'}
+📱 <b>Username:</b> @{update.effective_user.username or 'Yoq'}
 📞 <b>Telefon:</b> {user.get('phone', 'Kiritilmagan')}
         """
         
