@@ -641,7 +641,7 @@ Vazifalaringizni ko'rish uchun quyidagi tugmalardan birini tanlang:
             if task['status'] == 'MUDDATI_OTGAN':
                 reason = "⏰ Muddati o'tgan"
             elif task['status'] == 'RAD_ETILDI':
-                rejector_name = task.get('rejector_name', 'Noma\'lum')
+                rejector_name = task.get('rejector_name', 'Nomalum')
                 reason = f"🚫 {rejector_name} rad etgan"
             
             # Rad etilgan vaqt
@@ -691,8 +691,8 @@ Vazifalaringizni ko'rish uchun quyidagi tugmalardan birini tanlang:
         text = f"""
 {status_emoji} <b>{task['title']}</b>
 
-📄 <b>Tavsif:</b> {task['description'] or 'Tavsif yo\'q'}
-👤 <b>Ishchi:</b> {task.get('assigned_name', 'Noma\'lum')}
+📄 <b>Tavsif:</b> {task['description'] or 'Tavsif yoq'}
+👤 <b>Ishchi:</b> {task.get('assigned_name', 'Nomalum')}
 📅 <b>Boshlanish:</b> {format_datetime(task['start_at'])}
 ⏰ <b>Deadline:</b> {format_datetime(task['deadline'])} ({time_remaining})
 {priority_emoji} <b>Ustuvorlik:</b> {task['priority']}
@@ -1061,8 +1061,8 @@ Tahrirlash uchun vazifani tanlang:
 
 {status_emoji} <b>{task['title']}</b>
 
-📄 <b>Tavsif:</b> {task['description'] or 'Tavsif yo\'q'}
-👤 <b>Ishchi:</b> {task.get('assigned_name', 'Noma\'lum')}
+📄 <b>Tavsif:</b> {task['description'] or 'Tavsif yoq'}
+👤 <b>Ishchi:</b> {task.get('assigned_name', 'Nomalum')}
 📅 <b>Boshlanish:</b> {format_datetime(task['start_at'])}
 ⏰ <b>Deadline:</b> {format_datetime(task['deadline'])}
 {priority_emoji} <b>Ustuvorlik:</b> {task['priority']}

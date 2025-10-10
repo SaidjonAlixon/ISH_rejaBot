@@ -231,7 +231,7 @@ Statusni tanlang:
                     # Oxirgi uzaytirish ma'lumotini olish
                     latest_extension = extensions[0]
                     task['original_deadline'] = latest_extension.get('old_deadline', task['deadline'])
-                    task['deadline_extended_by'] = latest_extension.get('extended_by_name', 'Noma\'lum')
+                    task['deadline_extended_by'] = latest_extension.get('extended_by_name', 'Nomalum')
                     task['deadline_extension_reason'] = latest_extension.get('reason', 'Yoq')
                     task['deadline_extension_hours'] = latest_extension.get('extension_hours', 0)
                 else:
@@ -316,7 +316,7 @@ Statusni tanlang:
                 if extensions and len(extensions) > 0:
                     latest_extension = extensions[0]
                     task['original_deadline'] = latest_extension.get('old_deadline', task['deadline'])
-                    task['deadline_extended_by'] = latest_extension.get('extended_by_name', 'Noma\'lum')
+                    task['deadline_extended_by'] = latest_extension.get('extended_by_name', 'Nomalum')
                     task['deadline_extension_reason'] = latest_extension.get('reason', 'Yoq')
                     task['deadline_extension_hours'] = latest_extension.get('extension_hours', 0)
                 else:
@@ -374,7 +374,7 @@ Statusni tanlang:
             data.append({
                 'ID': task['id'],
                 'Sarlavha': task['title'],
-                'Tavsif': task['description'] or 'Tavsif yo\'q',
+                'Tavsif': task['description'] or 'Tavsif yoq',
                 'Status': f"{status_emoji} {task['status']}",
                 'Ustuvorlik': f"{priority_emoji} {task['priority']}",
                 'Boshlanish vaqti': format_datetime(task['start_at']),
@@ -386,7 +386,7 @@ Statusni tanlang:
                 'Ishchi tugatgan vaqt': format_datetime(task['completed_at']) if task['completed_at'] else 'Tugatilmagan',
                 'Admin tasdiqlagan vaqt': format_datetime(task['approved_at']) if task['approved_at'] else 'Tasdiqlanmagan',
                 'Rad etilgan vaqt': format_datetime(task.get('rejected_at')) if task.get('rejected_at') else 'Rad etilmagan',
-                'Yaratuvchi': task['creator_name'] or 'Noma\'lum',
+                'Yaratuvchi': task['creator_name'] or 'Nomalum',
                 'Yaratuvchi telefon': task['creator_phone'] or 'Kiritilmagan',
                 'Ishchi': task['assigned_name'] or 'Tayinlanmagan',
                 'Ishchi telefon': task['assigned_phone'] or 'Kiritilmagan',
