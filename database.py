@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import pytz
