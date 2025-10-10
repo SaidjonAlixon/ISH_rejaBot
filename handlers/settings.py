@@ -1,0 +1,261 @@
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+from handlers.base import BaseHandler
+from config import UserRole, DEFAULT_PENALTY_AMOUNT, DEFAULT_TIMEZONE
+from utils import format_penalty_amount
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SettingsHandler(BaseHandler):
+    def __init__(self, db):
+        super().__init__(db)
+        self.user_states = {}
+    
+    async def handle_settings_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Sozlamalar menyusi"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        # Hozirgi sozlamalarni olish
+        settings = self.db.get_org_settings()
+        
+        if not settings:
+            # Agar sozlamalar yo'q bo'lsa, default yaratish
+            self.db.create_org_settings("Yangi Tashkilot")
+            settings = self.db.get_org_settings()
+        
+        text = f"""
+⚙️ <b>Tashkilot sozlamalari</b>
+
+🏢 <b>Tashkilot nomi:</b> {settings['org_name']}
+🌍 <b>Vaqt zonasi:</b> {settings['timezone']}
+💰 <b>Jarima miqdori:</b> {format_penalty_amount(settings['penalty_amount'])}
+🕘 <b>Ish soati:</b> {settings['work_hours_start']:02d}:00 - {settings['work_hours_end']:02d}:00
+
+Quyidagi sozlamalardan birini tanlang:
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🏢 Tashkilot nomi", callback_data="edit_org_name")],
+            [InlineKeyboardButton("🌍 Vaqt zonasi", callback_data="edit_timezone")],
+            [InlineKeyboardButton("💰 Jarima miqdori", callback_data="edit_penalty")],
+            [InlineKeyboardButton("🕘 Ish soati", callback_data="edit_work_hours")],
+            [InlineKeyboardButton("🔙 Orqaga", callback_data="main_menu")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_edit_org_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Tashkilot nomini tahrirlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        self.user_states[user['id']] = 'editing_org_name'
+        
+        text = """
+🏢 <b>Tashkilot nomini tahrirlash</b>
+
+Yangi tashkilot nomini yuboring:
+        """
+        
+        reply_markup = self.create_back_button("settings_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_edit_timezone(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Vaqt zonasi tahrirlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        text = """
+🌍 <b>Vaqt zonasi tahrirlash</b>
+
+Vaqt zonasini tanlang:
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🇺🇿 Asia/Tashkent", callback_data="timezone_Asia/Tashkent")],
+            [InlineKeyboardButton("🇷🇺 Europe/Moscow", callback_data="timezone_Europe/Moscow")],
+            [InlineKeyboardButton("🇺🇸 America/New_York", callback_data="timezone_America/New_York")],
+            [InlineKeyboardButton("🇬🇧 Europe/London", callback_data="timezone_Europe/London")],
+            [InlineKeyboardButton("🔙 Orqaga", callback_data="settings_menu")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_edit_penalty(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Jarima miqdorini tahrirlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        self.user_states[user['id']] = 'editing_penalty'
+        
+        text = """
+💰 <b>Jarima miqdorini tahrirlash</b>
+
+Yangi jarima miqdorini UZS da yuboring (faqat raqam):
+Masalan: 1000000
+        """
+        
+        reply_markup = self.create_back_button("settings_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_edit_work_hours(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish soatini tahrirlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        text = """
+🕘 <b>Ish soatini tahrirlash</b>
+
+Ish soatini tanlang:
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("08:00 - 17:00", callback_data="work_hours_8_17")],
+            [InlineKeyboardButton("09:00 - 18:00", callback_data="work_hours_9_18")],
+            [InlineKeyboardButton("10:00 - 19:00", callback_data="work_hours_10_19")],
+            [InlineKeyboardButton("🔙 Orqaga", callback_data="settings_menu")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_org_name_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Tashkilot nomi kiritish"""
+        user = self.get_user(update)
+        
+        if self.user_states.get(user['id']) != 'editing_org_name':
+            return
+        
+        org_name = update.message.text.strip()
+        
+        if not org_name:
+            await self.send_message(update, context, "❌ Tashkilot nomi bo'sh bo'lishi mumkin emas!")
+            return
+        
+        # Tashkilot nomini yangilash
+        query = "UPDATE org_settings SET org_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
+        self.db.execute_update(query, (org_name,))
+        
+        # Holatni tozalash
+        del self.user_states[user['id']]
+        
+        # Audit log
+        self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Tashkilot nomi yangilandi: {org_name}")
+        
+        text = f"""
+✅ <b>Tashkilot nomi yangilandi!</b>
+
+🏢 <b>Yangi nom:</b> {org_name}
+        """
+        
+        reply_markup = self.create_back_button("settings_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_penalty_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Jarima miqdori kiritish"""
+        user = self.get_user(update)
+        
+        if self.user_states.get(user['id']) != 'editing_penalty':
+            return
+        
+        try:
+            penalty_amount = int(update.message.text.strip())
+            
+            if penalty_amount < 0:
+                await self.send_message(update, context, "❌ Jarima miqdori manfiy bo'lishi mumkin emas!")
+                return
+            
+            # Jarima miqdorini yangilash
+            query = "UPDATE org_settings SET penalty_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
+            self.db.execute_update(query, (penalty_amount,))
+            
+            # Holatni tozalash
+            del self.user_states[user['id']]
+            
+            # Audit log
+            self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Jarima miqdori yangilandi: {penalty_amount} UZS")
+            
+            text = f"""
+✅ <b>Jarima miqdori yangilandi!</b>
+
+💰 <b>Yangi miqdor:</b> {format_penalty_amount(penalty_amount)}
+            """
+            
+            reply_markup = self.create_back_button("settings_menu")
+            await self.send_message(update, context, text, reply_markup)
+            
+        except ValueError:
+            await self.send_message(update, context, "❌ Noto'g'ri format! Faqat raqam yuboring.")
+    
+    async def handle_timezone_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Vaqt zonasi tanlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        timezone = update.callback_query.data.split('_')[1]
+        
+        # Vaqt zonasini yangilash
+        query = "UPDATE org_settings SET timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
+        self.db.execute_update(query, (timezone,))
+        
+        # Audit log
+        self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Vaqt zonasi yangilandi: {timezone}")
+        
+        text = f"""
+✅ <b>Vaqt zonasi yangilandi!</b>
+
+🌍 <b>Yangi vaqt zonasi:</b> {timezone}
+        """
+        
+        reply_markup = self.create_back_button("settings_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_work_hours_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish soati tanlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        data = update.callback_query.data.split('_')
+        start_hour = int(data[2])
+        end_hour = int(data[3])
+        
+        # Ish soatini yangilash
+        query = "UPDATE org_settings SET work_hours_start = ?, work_hours_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
+        self.db.execute_update(query, (start_hour, end_hour))
+        
+        # Audit log
+        self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Ish soati yangilandi: {start_hour:02d}:00 - {end_hour:02d}:00")
+        
+        text = f"""
+✅ <b>Ish soati yangilandi!</b>
+
+🕘 <b>Yangi ish soati:</b> {start_hour:02d}:00 - {end_hour:02d}:00
+        """
+        
+        reply_markup = self.create_back_button("settings_menu")
+        await self.send_message(update, context, text, reply_markup)
