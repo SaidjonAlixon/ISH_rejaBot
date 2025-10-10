@@ -19,6 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Debug uchun environment variables ni tekshirish
+from config import SUPER_ADMIN_TELEGRAM_ID
+logger.info(f"SUPER_ADMIN_TELEGRAM_ID loaded: {SUPER_ADMIN_TELEGRAM_ID} (type: {type(SUPER_ADMIN_TELEGRAM_ID)})")
+
 class IshBot:
     def __init__(self):
         self.db = Database()

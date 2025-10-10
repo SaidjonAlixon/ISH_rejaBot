@@ -15,10 +15,21 @@ class Database:
             os.makedirs("/data", exist_ok=True)
         else:
             self.db_path = db_path
+        
+        # Database mavjudligini tekshirish
         self.init_database()
     
     def init_database(self):
         """Ma'lumotlar bazasi jadvallarini yaratish"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Database fayl mavjudligini tekshirish
+        import os
+        db_exists = os.path.exists(self.db_path)
+        logger.info(f"Database path: {self.db_path}")
+        logger.info(f"Database exists: {db_exists}")
+        
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -137,6 +148,16 @@ class Database:
         
         conn.commit()
         conn.close()
+        
+        # Database yaratilgandan keyin backup qilish
+        if not db_exists:
+            logger.info("New database created, performing initial setup...")
+            # Super Admin yaratish uchun tekshirish
+            from config import SUPER_ADMIN_TELEGRAM_ID
+            if SUPER_ADMIN_TELEGRAM_ID:
+                logger.info(f"SUPER_ADMIN_TELEGRAM_ID found: {SUPER_ADMIN_TELEGRAM_ID}")
+            else:
+                logger.warning("SUPER_ADMIN_TELEGRAM_ID not set in environment variables")
     
     def get_connection(self):
         """Ma'lumotlar bazasi ulanishini olish"""
