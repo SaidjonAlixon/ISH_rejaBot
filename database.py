@@ -10,9 +10,10 @@ class Database:
         # Railway da database path ni tekshirish
         import os
         if os.getenv('RAILWAY_ENVIRONMENT'):
-            # Railway da persistent storage uchun
-            self.db_path = "/data/ishbot.db"
-            os.makedirs("/data", exist_ok=True)
+            # Railway da oddiy database path ishlatish
+            self.db_path = "ishbot.db"
+            logger = logging.getLogger(__name__)
+            logger.info("Railway environment detected, using default database path")
         else:
             self.db_path = db_path
         
