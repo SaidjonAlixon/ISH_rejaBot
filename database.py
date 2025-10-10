@@ -11,10 +11,11 @@ class Database:
         # Railway da database path ni tekshirish
         import os
         if os.getenv('RAILWAY_ENVIRONMENT'):
-            # Railway da oddiy database path ishlatish
-            self.db_path = "ishbot.db"
+            # Railway da persistent volume ishlatish
+            self.db_path = "/app/data/ishbot.db"
+            os.makedirs("/app/data", exist_ok=True)
             logger = logging.getLogger(__name__)
-            logger.info("Railway environment detected, using default database path")
+            logger.info("Railway environment detected, using persistent database path: /app/data/ishbot.db")
         else:
             self.db_path = db_path
         
@@ -160,6 +161,17 @@ class Database:
                 logger.info(f"SUPER_ADMIN_TELEGRAM_ID found: {SUPER_ADMIN_TELEGRAM_ID}")
             else:
                 logger.warning("SUPER_ADMIN_TELEGRAM_ID not set in environment variables")
+        else:
+            logger.info(f"Existing database found at: {self.db_path}")
+            # Mavjud foydalanuvchilar sonini tekshirish
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users")
+            user_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'SUPER_ADMIN'")
+            admin_count = cursor.fetchone()[0]
+            conn.close()
+            logger.info(f"Database contains {user_count} users, {admin_count} super admins")
     
     def get_connection(self):
         """Ma'lumotlar bazasi ulanishini olish"""

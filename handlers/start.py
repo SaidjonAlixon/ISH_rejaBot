@@ -14,8 +14,16 @@ class StartHandler(BaseHandler):
         
         # Agar foydalanuvchi to'liq registratsiya qilmagan bo'lsa
         if not user.get('full_name') or user.get('full_name') == 'Yangi Foydalanuvchi' or not user.get('phone'):
-            await self.start_registration(update, context, user)
-            return
+            # Super Admin uchun ro'yxatdan o'tish jarayonini o'tkazib yuborish
+            if user.get('role') == UserRole.SUPER_ADMIN:
+                # Super Admin uchun default ma'lumotlar
+                self.db.update_user_full_name(user['id'], "Super Admin")
+                self.db.update_user_phone(user['id'], "+998000000000")
+                # Yangi user object ni olish
+                user = self.get_user(update)
+            else:
+                await self.start_registration(update, context, user)
+                return
         
         # Tashkilot sozlamalarini tekshirish
         org_settings = self.db.get_org_settings()
