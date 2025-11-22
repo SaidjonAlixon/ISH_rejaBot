@@ -315,16 +315,16 @@ class IshBot:
             if state in ['waiting_phone', 'waiting_phone_text', 'waiting_phone_contact']:
                 await self.start_handler.handle_phone_input(update, context)
     
-    async def start_bot(self):
+    def start_bot(self):
         """Botni ishga tushirish"""
         logger.info("Bot ishga tushmoqda...")
         
         # Botni ishga tushirish (run_polling avtomatik initialize, start va polling qiladi)
+        # run_polling() o'zi event loop yaratadi, shuning uchun asyncio.run() ishlatmaymiz
         try:
-            await self.application.run_polling(
+            self.application.run_polling(
                 allowed_updates=["message", "callback_query"],
-                drop_pending_updates=True,
-                close_loop=False
+                drop_pending_updates=True
             )
         except KeyboardInterrupt:
             logger.info("Bot foydalanuvchi tomonidan to'xtatildi")
@@ -345,7 +345,7 @@ def main():
     # Botni ishga tushirish
     try:
         bot = IshBot()
-        asyncio.run(bot.start_bot())
+        bot.start_bot()
     except Exception as e:
         logger.error(f"Bot ishga tushirishda xatolik: {e}", exc_info=True)
         print(f"❌ Bot ishga tushirishda xatolik: {e}")
