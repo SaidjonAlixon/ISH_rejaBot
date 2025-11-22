@@ -262,7 +262,8 @@ Vazifani davom ettiring!
                 parse_mode='HTML'
             )
             
-            logger.info(f"Periodik eslatma yuborildi: {task['title']} -> {task.get('assigned_name', 'Noma\'lum')}")
+            assigned_name = task.get('assigned_name', 'Noma\'lum')
+            logger.info(f"Periodik eslatma yuborildi: {task['title']} -> {assigned_name}")
             
         except Exception as e:
             logger.error(f"Periodik eslatma yuborishda xatolik: {e}")
