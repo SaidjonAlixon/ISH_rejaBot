@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from database import Database
 from handlers.start import StartHandler
 from handlers.tasks import TaskHandler
@@ -51,6 +51,28 @@ class IshBot:
         
         # Bot application yaratish
         self.application = Application.builder().token(BOT_TOKEN).post_init(post_init).post_stop(post_stop).build()
+        
+        # Error handler qo'shish
+        async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+            """Xatolarni boshqarish"""
+            error = context.error
+            error_str = str(error) if error else ""
+            
+            # Conflict xatosi - boshqa bot instance ishlamoqda (bu odatda vaqtincha)
+            if "Conflict" in error_str or "terminated by other getUpdates" in error_str:
+                logger.warning("⚠️ Conflict xatosi: Boshqa bot instance ishlamoqda. Bu odatda vaqtincha xato va o'z-o'zidan hal bo'ladi.")
+                return  # Xatoni ignore qilish
+            
+            # InvalidToken xatosi - bot token noto'g'ri
+            if "Unauthorized" in error_str or "InvalidToken" in error_str:
+                logger.error("❌ Bot token noto'g'ri yoki o'chirilgan! .env faylida BOT_TOKEN ni tekshiring.")
+                return  # Xatoni ignore qilish, lekin bot to'xtaydi
+            
+            # Boshqa xatolarni log qilish
+            logger.error(f"Xatolik yuz berdi: {error}", exc_info=error)
+        
+        # Error handler qo'shish
+        self.application.add_error_handler(error_handler)
         
         # Handlerlarni qo'shish
         self.setup_handlers()
@@ -335,6 +357,12 @@ class IshBot:
                 logger.warning("⚠️ Boshqa bot instance ishlamoqda. Bu odatda vaqtincha xato.")
                 logger.info("Bot avtomatik qayta urinadi. Agar muammo davom etsa, barcha bot instance'larni to'xtating.")
                 # Bu xato odatda o'z-o'zidan hal bo'ladi, shuning uchun faqat log qilamiz
+                return
+            # InvalidToken xatosi - bot token noto'g'ri
+            elif "Unauthorized" in error_str or "InvalidToken" in error_str:
+                logger.error("❌ Bot token noto'g'ri yoki o'chirilgan!")
+                logger.error("Iltimos, .env faylida BOT_TOKEN ni tekshiring va to'g'ri ekanligiga ishonch hosil qiling.")
+                print("❌ Bot token noto'g'ri yoki o'chirilgan! .env faylida BOT_TOKEN ni tekshiring.")
                 return
             else:
                 logger.error(f"Bot xatosi: {e}", exc_info=True)
