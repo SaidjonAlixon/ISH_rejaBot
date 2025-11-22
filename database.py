@@ -1,198 +1,220 @@
-import sqlite3
+import psycopg2
+import psycopg2.extras
+from psycopg2.pool import SimpleConnectionPool
+from urllib.parse import urlparse
 import os
 import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import pytz
-from config import DEFAULT_TIMEZONE
+from config import DEFAULT_TIMEZONE, DATABASE_URL
+
+logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self, db_path: str = "ishbot.db"):
-        # Railway da database path ni tekshirish
-        import os
-        if os.getenv('RAILWAY_ENVIRONMENT'):
-            # Railway da persistent volume ishlatish
-            self.db_path = "/app/data/ishbot.db"
-            os.makedirs("/app/data", exist_ok=True)
-            logger = logging.getLogger(__name__)
-            logger.info("Railway environment detected, using persistent database path: /app/data/ishbot.db")
-        else:
-            self.db_path = db_path
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or DATABASE_URL
         
-        # Database mavjudligini tekshirish
+        # Connection pool yaratish
+        try:
+            # URL ni parse qilish
+            parsed = urlparse(self.database_url)
+            self.db_config = {
+                'host': parsed.hostname or 'localhost',
+                'port': parsed.port or 5432,
+                'database': parsed.path[1:] if parsed.path else 'ishbot',  # /ishbot -> ishbot
+                'user': parsed.username or 'postgres',
+                'password': parsed.password or 'postgres'
+            }
+            
+            # Connection pool yaratish (min 1, max 5 connection)
+            self.pool = SimpleConnectionPool(1, 5, **self.db_config)
+            
+            if self.pool:
+                logger.info(f"PostgreSQL connection pool yaratildi: {self.db_config['database']}")
+            else:
+                raise Exception("Connection pool yaratib bo'lmadi")
+                
+        except Exception as e:
+            logger.error(f"Database connection xatosi: {e}")
+            raise
+        
+        # Database mavjudligini tekshirish va jadvallarni yaratish
         self.init_database()
+    
+    def get_connection(self):
+        """Ma'lumotlar bazasi ulanishini olish"""
+        try:
+            return self.pool.getconn()
+        except Exception as e:
+            logger.error(f"Connection olishda xatolik: {e}")
+            # Qayta urinish
+            self.pool = SimpleConnectionPool(1, 5, **self.db_config)
+            return self.pool.getconn()
+    
+    def return_connection(self, conn):
+        """Connectionni pool ga qaytarish"""
+        try:
+            self.pool.putconn(conn)
+        except Exception as e:
+            logger.error(f"Connection qaytarishda xatolik: {e}")
     
     def init_database(self):
         """Ma'lumotlar bazasi jadvallarini yaratish"""
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        # Database fayl mavjudligini tekshirish
-        import os
-        db_exists = os.path.exists(self.db_path)
-        logger.info(f"Database path: {self.db_path}")
-        logger.info(f"Database exists: {db_exists}")
-        
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Users jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id INTEGER UNIQUE NOT NULL,
-                full_name TEXT NOT NULL,
-                username TEXT,
-                phone TEXT,
-                role TEXT NOT NULL CHECK(role IN ('SUPER_ADMIN', 'ADMIN', 'WORKER')),
-                is_active BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Tasks jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                description TEXT,
-                created_by INTEGER NOT NULL,
-                assigned_to INTEGER NOT NULL,
-                start_at TIMESTAMP NOT NULL,
-                deadline TIMESTAMP NOT NULL,
-                priority TEXT NOT NULL CHECK(priority IN ('PAST', 'ORTA', 'YUQORI', 'KRITIK')),
-                status TEXT NOT NULL CHECK(status IN ('REJALASHTIRILGAN', 'JARAYONDA', 'TASDIQLASH_KUTILMOQDA', 'BAJARILDI', 'RAD_ETILDI', 'MUDDATI_OTGAN')),
-                completed_at TIMESTAMP,
-                approved_by INTEGER,
-                approved_at TIMESTAMP,
-                rejected_by INTEGER,
-                rejected_at TIMESTAMP,
-                is_penalized BOOLEAN DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                resubmit_count INTEGER DEFAULT 0,
-                penalty_amount INTEGER DEFAULT 0,
-                FOREIGN KEY (created_by) REFERENCES users (id),
-                FOREIGN KEY (assigned_to) REFERENCES users (id),
-                FOREIGN KEY (approved_by) REFERENCES users (id),
-                FOREIGN KEY (rejected_by) REFERENCES users (id)
-            )
-        ''')
-        
-        # Task files jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS task_files (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id TEXT NOT NULL,
-                file_id TEXT NOT NULL,
-                file_name TEXT NOT NULL,
-                uploaded_by INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (task_id) REFERENCES tasks (id),
-                FOREIGN KEY (uploaded_by) REFERENCES users (id)
-            )
-        ''')
-        
-        # Task comments jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS task_comments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id TEXT NOT NULL,
-                author_id INTEGER NOT NULL,
-                message TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (task_id) REFERENCES tasks (id),
-                FOREIGN KEY (author_id) REFERENCES users (id)
-            )
-        ''')
-        
-        # Audit log jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS audit_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                action TEXT NOT NULL,
-                details TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )
-        ''')
-        
-        # Organization settings jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS org_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                org_name TEXT NOT NULL,
-                timezone TEXT DEFAULT 'Asia/Tashkent',
-                penalty_amount INTEGER DEFAULT 1000000,
-                work_hours_start INTEGER DEFAULT 9,
-                work_hours_end INTEGER DEFAULT 18,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Task deadline extensions jadvali
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS task_deadline_extensions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id TEXT NOT NULL,
-                extended_by INTEGER NOT NULL,
-                old_deadline TIMESTAMP NOT NULL,
-                new_deadline TIMESTAMP NOT NULL,
-                extension_hours INTEGER NOT NULL,
-                reason TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (task_id) REFERENCES tasks (id),
-                FOREIGN KEY (extended_by) REFERENCES users (id)
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        
-        # Database yaratilgandan keyin backup qilish
-        if not db_exists:
-            logger.info("New database created, performing initial setup...")
-            # Super Admin yaratish uchun tekshirish
-            from config import SUPER_ADMIN_TELEGRAM_ID
-            if SUPER_ADMIN_TELEGRAM_ID:
-                logger.info(f"SUPER_ADMIN_TELEGRAM_ID found: {SUPER_ADMIN_TELEGRAM_ID}")
-            else:
-                logger.warning("SUPER_ADMIN_TELEGRAM_ID not set in environment variables")
-        else:
-            logger.info(f"Existing database found at: {self.db_path}")
-            # Mavjud foydalanuvchilar sonini tekshirish
+        conn = None
+        try:
             conn = self.get_connection()
             cursor = conn.cursor()
+            
+            # Users jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    telegram_id BIGINT UNIQUE NOT NULL,
+                    full_name VARCHAR(255) NOT NULL,
+                    username VARCHAR(255),
+                    phone VARCHAR(50),
+                    role VARCHAR(20) NOT NULL CHECK(role IN ('SUPER_ADMIN', 'ADMIN', 'WORKER')),
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Tasks jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id VARCHAR(255) PRIMARY KEY,
+                    title VARCHAR(500) NOT NULL,
+                    description TEXT,
+                    created_by INTEGER NOT NULL,
+                    assigned_to INTEGER NOT NULL,
+                    start_at TIMESTAMP NOT NULL,
+                    deadline TIMESTAMP NOT NULL,
+                    priority VARCHAR(20) NOT NULL CHECK(priority IN ('PAST', 'ORTA', 'YUQORI', 'KRITIK')),
+                    status VARCHAR(30) NOT NULL CHECK(status IN ('REJALASHTIRILGAN', 'JARAYONDA', 'TASDIQLASH_KUTILMOQDA', 'BAJARILDI', 'RAD_ETILDI', 'MUDDATI_OTGAN')),
+                    completed_at TIMESTAMP,
+                    approved_by INTEGER,
+                    approved_at TIMESTAMP,
+                    rejected_by INTEGER,
+                    rejected_at TIMESTAMP,
+                    is_penalized BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    resubmit_count INTEGER DEFAULT 0,
+                    penalty_amount INTEGER DEFAULT 0,
+                    FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (assigned_to) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (approved_by) REFERENCES users (id) ON DELETE SET NULL,
+                    FOREIGN KEY (rejected_by) REFERENCES users (id) ON DELETE SET NULL
+                )
+            ''')
+            
+            # Task files jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS task_files (
+                    id SERIAL PRIMARY KEY,
+                    task_id VARCHAR(255) NOT NULL,
+                    file_id VARCHAR(255) NOT NULL,
+                    file_name VARCHAR(500) NOT NULL,
+                    uploaded_by INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+                    FOREIGN KEY (uploaded_by) REFERENCES users (id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Task comments jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS task_comments (
+                    id SERIAL PRIMARY KEY,
+                    task_id VARCHAR(255) NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+                    FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Audit log jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    action VARCHAR(100) NOT NULL,
+                    details TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Organization settings jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS org_settings (
+                    id SERIAL PRIMARY KEY,
+                    org_name VARCHAR(255) NOT NULL,
+                    timezone VARCHAR(50) DEFAULT 'Asia/Tashkent',
+                    penalty_amount INTEGER DEFAULT 1000000,
+                    work_hours_start INTEGER DEFAULT 9,
+                    work_hours_end INTEGER DEFAULT 18,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Task deadline extensions jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS task_deadline_extensions (
+                    id SERIAL PRIMARY KEY,
+                    task_id VARCHAR(255) NOT NULL,
+                    extended_by INTEGER NOT NULL,
+                    old_deadline TIMESTAMP NOT NULL,
+                    new_deadline TIMESTAMP NOT NULL,
+                    extension_hours INTEGER NOT NULL,
+                    reason TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+                    FOREIGN KEY (extended_by) REFERENCES users (id) ON DELETE CASCADE
+                )
+            ''')
+            
+            conn.commit()
+            logger.info("Database jadvallari yaratildi yoki mavjud")
+            
+            # Mavjud foydalanuvchilar sonini tekshirish
             cursor.execute("SELECT COUNT(*) FROM users")
             user_count = cursor.fetchone()[0]
             cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'SUPER_ADMIN'")
             admin_count = cursor.fetchone()[0]
-            conn.close()
             logger.info(f"Database contains {user_count} users, {admin_count} super admins")
-    
-    def get_connection(self):
-        """Ma'lumotlar bazasi ulanishini olish"""
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
-        # WAL mode ni yoqish (Write-Ahead Logging) - concurrent read/write uchun
-        conn.execute('PRAGMA journal_mode=WAL')
-        return conn
+            
+        except Exception as e:
+            logger.error(f"Database initialization xatosi: {e}")
+            if conn:
+                conn.rollback()
+            raise
+        finally:
+            if conn:
+                self.return_connection(conn)
     
     def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """Sorovni bajarish va natijalarni qaytarish"""
         conn = None
         try:
             conn = self.get_connection()
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            # PostgreSQL placeholder ? o'rniga %s
+            query = query.replace('?', '%s')
             cursor.execute(query, params)
             results = [dict(row) for row in cursor.fetchall()]
             return results
+        except Exception as e:
+            logger.error(f"Query execution xatosi: {e}, Query: {query[:100]}")
+            raise
         finally:
             if conn:
-                conn.close()
+                self.return_connection(conn)
     
     def execute_update(self, query: str, params: tuple = ()) -> int:
         """Yangilash/ochirish/joylashtirish so'rovini bajarish"""
@@ -200,35 +222,34 @@ class Database:
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
+            # PostgreSQL placeholder ? o'rniga %s
+            query = query.replace('?', '%s')
             cursor.execute(query, params)
             conn.commit()
-            last_id = cursor.lastrowid
+            # PostgreSQL da RETURNING ishlatish yoki lastrowid
+            if 'RETURNING' in query.upper():
+                last_id = cursor.fetchone()[0]
+            else:
+                last_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else 0
             return last_id
-        except sqlite3.OperationalError as e:
-            if "locked" in str(e).lower():
-                # Agar database locked bo'lsa, qisqa kutib qayta urinib ko'ramiz
-                import time
-                time.sleep(0.1)
-                conn = self.get_connection()
-                cursor = conn.cursor()
-                cursor.execute(query, params)
-                conn.commit()
-                last_id = cursor.lastrowid
-                return last_id
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Update execution xatosi: {e}, Query: {query[:100]}")
             raise
         finally:
             if conn:
-                conn.close()
+                self.return_connection(conn)
     
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict[str, Any]]:
         """Telegram ID bo'yicha foydalanuvchini topish"""
-        query = "SELECT * FROM users WHERE telegram_id = ?"
+        query = "SELECT * FROM users WHERE telegram_id = %s"
         results = self.execute_query(query, (telegram_id,))
         return results[0] if results else None
     
     def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Database ID bo'yicha foydalanuvchini topish"""
-        query = "SELECT * FROM users WHERE id = ?"
+        query = "SELECT * FROM users WHERE id = %s"
         results = self.execute_query(query, (user_id,))
         return results[0] if results else None
     
@@ -237,9 +258,14 @@ class Database:
         """Yangi foydalanuvchi yaratish"""
         query = """
             INSERT INTO users (telegram_id, full_name, username, phone, role)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
         """
-        user_id = self.execute_update(query, (telegram_id, full_name, username, phone, role))
+        result = self.execute_query(query, (telegram_id, full_name, username, phone, role))
+        user_id = result[0]['id'] if result else None
+        
+        if not user_id:
+            raise Exception("Foydalanuvchi yaratib bo'lmadi")
         
         # Agar Super Admin ID belgilangan bo'lsa va bu foydalanuvchi hali SUPER_ADMIN emas bo'lsa
         from config import SUPER_ADMIN_TELEGRAM_ID
@@ -251,19 +277,19 @@ class Database:
     
     def update_user_role(self, user_id: int, new_role: str) -> bool:
         """Foydalanuvchi rolini yangilash"""
-        query = "UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        query = "UPDATE users SET role = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
         self.execute_update(query, (new_role, user_id))
         return True
     
     def update_user_full_name(self, user_id: int, full_name: str) -> bool:
         """Foydalanuvchi ism familiyasini yangilash"""
-        query = "UPDATE users SET full_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        query = "UPDATE users SET full_name = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
         self.execute_update(query, (full_name, user_id))
         return True
     
     def update_user_phone(self, user_id: int, phone: str) -> bool:
         """Foydalanuvchi telefon raqamini yangilash"""
-        query = "UPDATE users SET phone = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        query = "UPDATE users SET phone = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
         self.execute_update(query, (phone, user_id))
         return True
     
@@ -274,18 +300,18 @@ class Database:
     
     def get_active_users(self) -> List[Dict[str, Any]]:
         """Faol foydalanuvchilarni olish"""
-        query = "SELECT * FROM users WHERE is_active = 1 ORDER BY full_name"
+        query = "SELECT * FROM users WHERE is_active = TRUE ORDER BY full_name"
         return self.execute_query(query)
     
     def get_admins(self) -> List[Dict[str, Any]]:
         """Admin va Super Admin larni olish"""
-        query = "SELECT * FROM users WHERE role IN ('ADMIN', 'SUPER_ADMIN') AND is_active = 1"
+        query = "SELECT * FROM users WHERE role IN ('ADMIN', 'SUPER_ADMIN') AND is_active = TRUE"
         return self.execute_query(query)
     
     def get_users_by_role(self, roles: List[str]) -> List[Dict[str, Any]]:
         """Rol bo'yicha foydalanuvchilarni olish"""
-        placeholders = ','.join(['?' for _ in roles])
-        query = f"SELECT * FROM users WHERE role IN ({placeholders}) AND is_active = 1"
+        placeholders = ','.join(['%s' for _ in roles])
+        query = f"SELECT * FROM users WHERE role IN ({placeholders}) AND is_active = TRUE"
         return self.execute_query(query, tuple(roles))
     
     def create_task(self, task_id: str, title: str, description: str, created_by: int,
@@ -294,7 +320,7 @@ class Database:
         query = """
             INSERT INTO tasks (id, title, description, created_by, assigned_to, 
                              start_at, deadline, priority, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'REJALASHTIRILGAN')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'REJALASHTIRILGAN')
         """
         return self.execute_update(query, (task_id, title, description, created_by, 
                                          assigned_to, start_at, deadline, priority))
@@ -305,7 +331,7 @@ class Database:
             SELECT t.*, u.full_name as creator_name 
             FROM tasks t 
             JOIN users u ON t.created_by = u.id 
-            WHERE t.id = ?
+            WHERE t.id = %s
         """
         results = self.execute_query(query, (task_id,))
         return results[0] if results else None
@@ -317,7 +343,7 @@ class Database:
                 SELECT t.*, u.full_name as creator_name 
                 FROM tasks t 
                 JOIN users u ON t.created_by = u.id 
-                WHERE t.assigned_to = ? AND t.status = ?
+                WHERE t.assigned_to = %s AND t.status = %s
                 ORDER BY t.created_at DESC
             """
             return self.execute_query(query, (user_id, status))
@@ -326,20 +352,20 @@ class Database:
                 SELECT t.*, u.full_name as creator_name 
                 FROM tasks t 
                 JOIN users u ON t.created_by = u.id 
-                WHERE t.assigned_to = ?
+                WHERE t.assigned_to = %s
                 ORDER BY t.created_at DESC
             """
             return self.execute_query(query, (user_id,))
     
     def get_user_tasks_by_status(self, user_id: int, statuses: List[str]) -> List[Dict[str, Any]]:
         """Foydalanuvchiga biriktirilgan vazifalarni status bo'yicha olish"""
-        placeholders = ','.join(['?' for _ in statuses])
+        placeholders = ','.join(['%s' for _ in statuses])
         query = f"""
             SELECT t.*, u1.full_name as creator_name, u2.full_name as rejector_name
             FROM tasks t 
             JOIN users u1 ON t.created_by = u1.id 
             LEFT JOIN users u2 ON t.rejected_by = u2.id
-            WHERE t.assigned_to = ? AND t.status IN ({placeholders})
+            WHERE t.assigned_to = %s AND t.status IN ({placeholders})
             ORDER BY t.created_at DESC
         """
         return self.execute_query(query, (user_id, *statuses))
@@ -349,13 +375,13 @@ class Database:
         if status == 'RAD_ETILDI':
             query = """
                 UPDATE tasks 
-                SET status = ?, rejected_by = ?, rejected_at = CURRENT_TIMESTAMP,
+                SET status = %s, rejected_by = %s, rejected_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE id = %s
             """
             self.execute_update(query, (status, rejected_by, task_id))
         else:
-            query = "UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            query = "UPDATE tasks SET status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
             self.execute_update(query, (status, task_id))
         return True
     
@@ -365,7 +391,7 @@ class Database:
             UPDATE tasks 
             SET status = 'TASDIQLASH_KUTILMOQDA', completed_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = %s
         """
         self.execute_update(query, (task_id,))
         return True
@@ -374,16 +400,16 @@ class Database:
         """Vazifani tasdiqlash (admin tomonidan)"""
         query = """
             UPDATE tasks 
-            SET status = 'BAJARILDI', approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+            SET status = 'BAJARILDI', approved_by = %s, approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = %s
         """
         self.execute_update(query, (approved_by, task_id))
         return True
     
     def update_task_deadline(self, task_id: str, new_deadline: str) -> bool:
         """Vazifa deadline'ini yangilash"""
-        query = "UPDATE tasks SET deadline = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        query = "UPDATE tasks SET deadline = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
         self.execute_update(query, (new_deadline, task_id))
         return True
     
@@ -393,14 +419,15 @@ class Database:
             SELECT t.*, u.telegram_id, u.full_name as assigned_name 
             FROM tasks t 
             JOIN users u ON t.assigned_to = u.id 
-            WHERE t.deadline < datetime('now') AND t.status NOT IN ('BAJARILDI', 'RAD_ETILDI')
+            WHERE t.deadline < NOW() AND t.status NOT IN ('BAJARILDI', 'RAD_ETILDI')
         """
         return self.execute_query(query)
     
     def add_audit_log(self, user_id: int, action: str, details: str = None) -> int:
         """Audit logga yozish"""
-        query = "INSERT INTO audit_log (user_id, action, details) VALUES (?, ?, ?)"
-        return self.execute_update(query, (user_id, action, details))
+        query = "INSERT INTO audit_log (user_id, action, details) VALUES (%s, %s, %s) RETURNING id"
+        result = self.execute_query(query, (user_id, action, details))
+        return result[0]['id'] if result else 0
     
     def get_audit_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Audit loglarni olish"""
@@ -409,7 +436,7 @@ class Database:
             FROM audit_log al 
             JOIN users u ON al.user_id = u.id 
             ORDER BY al.created_at DESC 
-            LIMIT ?
+            LIMIT %s
         """
         return self.execute_query(query, (limit,))
     
@@ -422,53 +449,46 @@ class Database:
     def create_org_settings(self, org_name: str) -> int:
         """Tashkilot sozlamalarini yaratish"""
         query = """
-            INSERT INTO org_settings (org_name) VALUES (?)
+            INSERT INTO org_settings (org_name) VALUES (%s) RETURNING id
         """
-        return self.execute_update(query, (org_name,))
+        result = self.execute_query(query, (org_name,))
+        return result[0]['id'] if result else 0
     
     def get_task_resubmit_count(self, task_id: str) -> int:
         """Vazifaning qayta yuborilish sonini olish"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT resubmit_count FROM tasks WHERE id = ?', (task_id,))
-        result = cursor.fetchone()
-        conn.close()
-        return result[0] if result else 0
+        query = 'SELECT resubmit_count FROM tasks WHERE id = %s'
+        results = self.execute_query(query, (task_id,))
+        return results[0]['resubmit_count'] if results else 0
     
     def increment_resubmit_count(self, task_id: str) -> int:
         """Vazifaning qayta yuborilish sonini oshirish"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('UPDATE tasks SET resubmit_count = resubmit_count + 1 WHERE id = ?', (task_id,))
-        cursor.execute('SELECT resubmit_count FROM tasks WHERE id = ?', (task_id,))
-        result = cursor.fetchone()
-        conn.commit()
-        conn.close()
-        return result[0] if result else 0
+        query = '''
+            UPDATE tasks SET resubmit_count = resubmit_count + 1 
+            WHERE id = %s
+            RETURNING resubmit_count
+        '''
+        result = self.execute_query(query, (task_id,))
+        return result[0]['resubmit_count'] if result else 0
     
     def apply_penalty(self, task_id: str, penalty_amount: int = 1000000):
         """Vazifaga shtraf qo'llash"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
+        query = '''
             UPDATE tasks 
-            SET penalty_amount = ?, is_penalized = 1 
-            WHERE id = ?
-        ''', (penalty_amount, task_id))
-        conn.commit()
-        conn.close()
+            SET penalty_amount = %s, is_penalized = TRUE 
+            WHERE id = %s
+        '''
+        self.execute_update(query, (penalty_amount, task_id))
     
     def can_resubmit_task(self, task_id: str) -> bool:
         """Vazifani qayta yuborish mumkinligini tekshirish"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT resubmit_count, is_penalized FROM tasks WHERE id = ?', (task_id,))
-        result = cursor.fetchone()
-        conn.close()
-        if not result:
+        query = 'SELECT resubmit_count, is_penalized FROM tasks WHERE id = %s'
+        results = self.execute_query(query, (task_id,))
+        if not results:
             return False
         
-        resubmit_count, is_penalized = result
+        result = results[0]
+        resubmit_count = result['resubmit_count']
+        is_penalized = result['is_penalized']
         return resubmit_count < 3 and not is_penalized
     
     def add_deadline_extension(self, task_id: str, extended_by: int, old_deadline: str, 
@@ -477,9 +497,11 @@ class Database:
         query = """
             INSERT INTO task_deadline_extensions 
             (task_id, extended_by, old_deadline, new_deadline, extension_hours, reason)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
         """
-        return self.execute_update(query, (task_id, extended_by, old_deadline, new_deadline, extension_hours, reason))
+        result = self.execute_query(query, (task_id, extended_by, old_deadline, new_deadline, extension_hours, reason))
+        return result[0]['id'] if result else 0
     
     def get_task_deadline_extensions(self, task_id: str) -> List[Dict[str, Any]]:
         """Vazifaning deadline uzaytirish tarixini olish"""
@@ -487,7 +509,7 @@ class Database:
             SELECT tde.*, u.full_name as extended_by_name
             FROM task_deadline_extensions tde
             JOIN users u ON tde.extended_by = u.id
-            WHERE tde.task_id = ?
+            WHERE tde.task_id = %s
             ORDER BY tde.created_at DESC
         """
         return self.execute_query(query, (task_id,))

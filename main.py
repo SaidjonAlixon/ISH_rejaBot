@@ -34,14 +34,26 @@ class IshBot:
         self.settings_handler = SettingsHandler(self.db)
         self.notification_handler = NotificationHandler(self.db, None)
         
+        # Notification handler uchun post_init va post_stop
+        async def post_init(app):
+            """Application ishga tushgandan keyin ishlaydi"""
+            self.notification_handler.bot = app.bot
+            notification_task = asyncio.create_task(self.notification_handler.start_notifications())
+            app.bot_data['notification_task'] = notification_task
+            logger.info("Bot ishga tushdi!")
+        
+        async def post_stop(app):
+            """Application to'xtatilganda ishlaydi"""
+            if 'notification_task' in app.bot_data:
+                await self.notification_handler.stop_notifications()
+                app.bot_data['notification_task'].cancel()
+                logger.info("Notification handler to'xtatildi")
+        
         # Bot application yaratish
-        self.application = Application.builder().token(BOT_TOKEN).build()
+        self.application = Application.builder().token(BOT_TOKEN).post_init(post_init).post_stop(post_stop).build()
         
         # Handlerlarni qo'shish
         self.setup_handlers()
-        
-        # Notification handler uchun bot instance
-        self.notification_handler.bot = self.application.bot
     
     def setup_handlers(self):
         """Handlerlarni sozlash"""
@@ -307,40 +319,36 @@ class IshBot:
         """Botni ishga tushirish"""
         logger.info("Bot ishga tushmoqda...")
         
-        # Botni ishga tushirish
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
-        
-        # Notification handler ni ishga tushirish
-        notification_task = asyncio.create_task(self.notification_handler.start_notifications())
-        
-        logger.info("Bot ishga tushdi!")
-        
-        # Botni ishga tushirishni kutish
+        # Botni ishga tushirish (run_polling avtomatik initialize, start va polling qiladi)
         try:
-            await asyncio.Event().wait()
+            await self.application.run_polling(
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True,
+                close_loop=False
+            )
         except KeyboardInterrupt:
-            logger.info("Bot to'xtatilmoqda...")
+            logger.info("Bot foydalanuvchi tomonidan to'xtatildi")
+        except Exception as e:
+            logger.error(f"Bot xatosi: {e}", exc_info=True)
+            raise
         finally:
-            # Notification handler ni to'xtatish
-            await self.notification_handler.stop_notifications()
-            notification_task.cancel()
-            
-            await self.application.updater.stop()
-            await self.application.stop()
-            await self.application.shutdown()
+            logger.info("Bot to'xtatildi")
 
 def main():
     """Asosiy funksiya"""
     # Bot tokenini tekshirish
-    if not BOT_TOKEN:
-        print("❌ BOT_TOKEN sozlanmagan! .env faylini yarating va BOT_TOKEN qo'shing.")
+    if not BOT_TOKEN or len(BOT_TOKEN) < 10:
+        logger.error("❌ BOT_TOKEN noto'g'ri yoki yo'q!")
+        print("❌ BOT_TOKEN sozlanmagan yoki noto'g'ri! .env faylini yarating va BOT_TOKEN qo'shing.")
         return
     
     # Botni ishga tushirish
-    bot = IshBot()
-    asyncio.run(bot.start_bot())
+    try:
+        bot = IshBot()
+        asyncio.run(bot.start_bot())
+    except Exception as e:
+        logger.error(f"Bot ishga tushirishda xatolik: {e}", exc_info=True)
+        print(f"❌ Bot ishga tushirishda xatolik: {e}")
 
 if __name__ == "__main__":
     main()

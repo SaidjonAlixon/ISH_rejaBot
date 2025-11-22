@@ -28,7 +28,13 @@ pip install -r requirements.txt
 ```env
 BOT_TOKEN=your_telegram_bot_token_here
 SUPER_ADMIN_TELEGRAM_ID=your_telegram_id_here
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ishbot
 ```
+
+**PostgreSQL sozlamalari:**
+- `DATABASE_URL` - PostgreSQL database connection string
+- Format: `postgresql://user:password@host:port/database`
+- Masalan: `postgresql://postgres:postgres@localhost:5432/ishbot`
 
 #### Usul 2: To'g'ridan-to'g'ri
 `config.py` faylida `BOT_TOKEN` ni o'zgartiring.

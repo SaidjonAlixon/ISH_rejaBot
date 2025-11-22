@@ -5,7 +5,9 @@ load_dotenv()
 
 # Bot sozlamalari
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-DATABASE_URL = 'sqlite:///ishbot.db'
+# PostgreSQL database URL
+# Format: postgresql://user:password@host:port/database
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/ishbot')
 
 # Kanal sozlamalari
 WORK_START_CHANNEL_ID = os.getenv('WORK_START_CHANNEL_ID')  # Ish boshlangan kanal ID
