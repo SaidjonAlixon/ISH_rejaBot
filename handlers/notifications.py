@@ -208,7 +208,8 @@ Vazifani davom ettiring!
             # Vaqt farqini minutlarda hisoblash
             time_since_created = (now - created_at).total_seconds() / 60
             
-            logger.debug(f"Periodik eslatma tekshiruvi: task={task.get('title', 'Noma\'lum')}, interval={interval_minutes} min, time_since={time_since_created:.1f} min")
+            task_title = task.get('title', 'Noma\'lum')
+            logger.debug(f"Periodik eslatma tekshiruvi: task={task_title}, interval={interval_minutes} min, time_since={time_since_created:.1f} min")
             
             # Agar interval o'tgan bo'lsa, ogohlantirish yuborish
             # Har interval_minutes da bir marta yuborish
