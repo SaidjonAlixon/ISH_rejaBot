@@ -322,7 +322,10 @@ class IshBot:
         elif user['id'] in self.settings_handler.user_states:
             state = self.settings_handler.user_states[user['id']]
             
-            if state == 'editing_org_name':
+            # Ogohlantirish qiymatini kiritish - birinchi tekshirish (eng yuqori ustuvorlik)
+            if state == 'editing_reminder_value':
+                await self.settings_handler.handle_reminder_value_input(update, context)
+            elif state == 'editing_org_name':
                 await self.settings_handler.handle_org_name_input(update, context)
             elif state == 'editing_penalty':
                 await self.settings_handler.handle_penalty_input(update, context)
@@ -330,15 +333,6 @@ class IshBot:
                 await self.settings_handler.handle_work_start_input(update, context)
             elif state == 'editing_work_end':
                 await self.settings_handler.handle_work_end_input(update, context)
-            elif state == 'editing_reminder_value':
-                await self.settings_handler.handle_reminder_value_input(update, context)
-        
-        # Settings handler holatlarini tekshirish (reminder uchun)
-        elif user['id'] in self.settings_handler.user_states:
-            state = self.settings_handler.user_states[user['id']]
-            
-            if state == 'editing_reminder_value':
-                await self.settings_handler.handle_reminder_value_input(update, context)
         
         else:
             # Oddiy xabar

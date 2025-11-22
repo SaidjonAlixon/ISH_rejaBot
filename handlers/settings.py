@@ -417,9 +417,21 @@ Vaqt birligini tanlang:
         query_data = update.callback_query.data
         unit = query_data.split('_')[-1]  # 'hours' yoki 'minutes'
         
-        # Holatni saqlash
+        # Holatni saqlash (MUHIM: boshqa holatlarni tozalash)
+        if user['id'] in self.user_states:
+            # Boshqa holatlarni tozalash
+            old_state = self.user_states.get(user['id'])
+            if old_state in ['editing_work_start', 'editing_work_end']:
+                # Ish soati holatlarini tozalash
+                if 'work_start_hour' in context.user_data:
+                    del context.user_data['work_start_hour']
+                if 'work_start_minute' in context.user_data:
+                    del context.user_data['work_start_minute']
+        
         context.user_data['reminder_unit'] = unit
         self.user_states[user['id']] = 'editing_reminder_value'
+        
+        logger.info(f"Reminder unit tanlandi: {unit}, holat: editing_reminder_value")
         
         if unit == 'hours':
             text = """
@@ -453,7 +465,13 @@ Faqat raqam kiriting (masalan: 5)
         """Ogohlantirish vaqti qiymatini kiritish"""
         user = self.get_user(update)
         
-        if self.user_states.get(user['id']) != 'editing_reminder_value':
+        # Holatni tekshirish
+        current_state = self.user_states.get(user['id'])
+        logger.info(f"Reminder value input: holat = {current_state}, user_id = {user['id']}")
+        
+        if current_state != 'editing_reminder_value':
+            logger.warning(f"Noto'g'ri holat: {current_state}, kutilyapti: editing_reminder_value")
+            # Agar boshqa holat bo'lsa, uni ignore qilish
             return
         
         try:
