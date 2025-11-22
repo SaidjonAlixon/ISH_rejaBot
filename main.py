@@ -329,8 +329,16 @@ class IshBot:
         except KeyboardInterrupt:
             logger.info("Bot foydalanuvchi tomonidan to'xtatildi")
         except Exception as e:
-            logger.error(f"Bot xatosi: {e}", exc_info=True)
-            raise
+            error_str = str(e)
+            # Conflict xatosi - boshqa bot instance ishlamoqda
+            if "Conflict" in error_str or "terminated by other getUpdates" in error_str:
+                logger.warning("⚠️ Boshqa bot instance ishlamoqda. Bu odatda vaqtincha xato.")
+                logger.info("Bot avtomatik qayta urinadi. Agar muammo davom etsa, barcha bot instance'larni to'xtating.")
+                # Bu xato odatda o'z-o'zidan hal bo'ladi, shuning uchun faqat log qilamiz
+                return
+            else:
+                logger.error(f"Bot xatosi: {e}", exc_info=True)
+                raise
         finally:
             logger.info("Bot to'xtatildi")
 
