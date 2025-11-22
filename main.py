@@ -252,7 +252,6 @@ class IshBot:
                 await self.settings_handler.handle_edit_reminder(update, context)
             elif data.startswith("reminder_unit_"):
                 await self.settings_handler.handle_reminder_unit_selection(update, context)
-                await self.settings_handler.handle_edit_work_hours(update, context)
             elif data.startswith("timezone_"):
                 await self.settings_handler.handle_timezone_selection(update, context)
             
