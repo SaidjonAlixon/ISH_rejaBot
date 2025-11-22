@@ -410,6 +410,10 @@ Vaqt birligini tanlang:
             await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
             return
         
+        # Callback query javobini yopish
+        if update.callback_query:
+            await update.callback_query.answer()
+        
         query_data = update.callback_query.data
         unit = query_data.split('_')[-1]  # 'hours' yoki 'minutes'
         
@@ -431,13 +435,19 @@ Faqat raqam kiriting (masalan: 3)
 ⏱ <b>Ogohlantirish vaqti (Minut)</b>
 
 Har necha minutda ogohlantirish yuborilsin?
-Faqat raqam kiriting (masalan: 30)
+Faqat raqam kiriting (masalan: 5)
 
-<i>Masalan: 30 kiritsangiz, har 30 minutda ogohlantirish yuboriladi</i>
+<i>Masalan: 5 kiritsangiz, har 5 minutda ogohlantirish yuboriladi</i>
             """
         
         reply_markup = self.create_back_button("settings_menu")
-        await self.send_message(update, context, text, reply_markup)
+        # Yangi xabar yuborish (callback query edit qilmaslik)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+        )
     
     async def handle_reminder_value_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Ogohlantirish vaqti qiymatini kiritish"""

@@ -333,6 +333,13 @@ class IshBot:
             elif state == 'editing_reminder_value':
                 await self.settings_handler.handle_reminder_value_input(update, context)
         
+        # Settings handler holatlarini tekshirish (reminder uchun)
+        elif user['id'] in self.settings_handler.user_states:
+            state = self.settings_handler.user_states[user['id']]
+            
+            if state == 'editing_reminder_value':
+                await self.settings_handler.handle_reminder_value_input(update, context)
+        
         else:
             # Oddiy xabar
             await update.message.reply_text(
