@@ -192,6 +192,9 @@ Vazifani davom ettiring!
     async def check_periodic_reminder(self, task: Dict[str, Any], interval_minutes: int):
         """Sozlamadan interval bo'yicha vazifalarni qayta yuborish"""
         try:
+            if not self.bot:
+                return
+                
             # Vazifaning yaratilgan vaqtini olish
             now = get_uzbek_time()
             created_at = datetime.fromisoformat(task['created_at']) if isinstance(task['created_at'], str) else task['created_at']
@@ -202,17 +205,26 @@ Vazifani davom ettiring!
             # Vaqt farqini minutlarda hisoblash
             time_since_created = (now - created_at).total_seconds() / 60
             
-            # Agar interval o'tgan bo'lsa va interval ga bo'linadigan bo'lsa, ogohlantirish yuborish
-            # Har minut tekshiriladi, lekin faqat interval ga bo'linadigan vaqtda yuboriladi
+            # Agar interval o'tgan bo'lsa, ogohlantirish yuborish
+            # Har interval_minutes da bir marta yuborish
             if time_since_created >= interval_minutes:
                 # Interval ga bo'linadigan vaqtda yuborish
-                intervals_passed = int(time_since_created / interval_minutes)
-                # Faqat yangi interval boshlanganda yuborish (1 minut ichida)
-                if intervals_passed > 0 and (time_since_created % interval_minutes) < 1:
+                # Masalan: interval = 1 minut, vaqt = 1.0, 2.0, 3.0... minut
+                # Masalan: interval = 5 minut, vaqt = 5.0, 10.0, 15.0... minut
+                remainder = time_since_created % interval_minutes
+                
+                # Faqat interval boshlanganda yuborish (0.5 minut ichida)
+                # Bu har minut tekshirilganda faqat bir marta yuborilishini ta'minlaydi
+                # Masalan: interval = 1 minut, remainder = 0.0, 0.1, 0.2... 0.9
+                # Masalan: interval = 5 minut, remainder = 0.0, 0.1, 0.2... 4.9
+                if remainder < 0.5:
+                    # Interval boshlanganda yuborish
                     await self.send_periodic_task_reminder(task, interval_minutes)
+                    task_title = task.get('title', 'Noma\'lum')
+                    logger.info(f"✅ Periodik eslatma yuborildi: {task_title}, interval: {interval_minutes} minut, vaqt: {time_since_created:.1f} minut, remainder: {remainder:.2f}")
                 
         except Exception as e:
-            logger.error(f"Periodik eslatmani tekshirishda xatolik: {e}")
+            logger.error(f"Periodik eslatmani tekshirishda xatolik: {e}", exc_info=True)
     
     async def send_periodic_task_reminder(self, task: Dict[str, Any], interval_minutes: int):
         """Periodik vazifa eslatmasini yuborish"""
