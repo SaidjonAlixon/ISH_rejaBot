@@ -96,7 +96,25 @@ class IshBot:
     async def handle_callback_query(self, update, context):
         """Callback querylarni boshqarish"""
         query = update.callback_query
+        
+        # Callback query tekshiruvi
+        if not query:
+            logger.error("Callback query None!")
+            return
+        
+        # Callback query javobini yopish (loading ko'rsatkichini olib tashlash)
+        try:
+            await query.answer()
+        except Exception as e:
+            logger.warning(f"Callback query answer xatosi: {e}")
+        
         data = query.data
+        
+        # Data tekshiruvi
+        if not data:
+            logger.error("Callback query data None!")
+            await query.answer("❌ Xatolik: Ma'lumot topilmadi!")
+            return
         
         try:
             if data == "main_menu":
@@ -237,8 +255,12 @@ class IshBot:
                 await query.answer("❌ Noma'lum buyruq!")
         
         except Exception as e:
-            logger.error(f"Callback query xatoligi: {e}")
-            await query.answer("❌ Xatolik yuz berdi!")
+            logger.error(f"Callback query xatoligi: {e}", exc_info=True)
+            try:
+                if query:
+                    await query.answer("❌ Xatolik yuz berdi!")
+            except Exception as answer_error:
+                logger.error(f"Callback query answer xatosi: {answer_error}")
     
     async def handle_message(self, update, context):
         """Matn xabarlarini boshqarish"""

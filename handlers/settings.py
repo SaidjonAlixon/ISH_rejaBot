@@ -14,41 +14,58 @@ class SettingsHandler(BaseHandler):
     
     async def handle_settings_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Sozlamalar menyusi"""
-        user = self.get_user(update)
-        
-        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
-            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
-            return
-        
-        # Hozirgi sozlamalarni olish
-        settings = self.db.get_org_settings()
-        
-        if not settings:
-            # Agar sozlamalar yo'q bo'lsa, default yaratish
-            self.db.create_org_settings("Yangi Tashkilot")
+        try:
+            user = self.get_user(update)
+            
+            if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+                await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+                return
+            
+            # Hozirgi sozlamalarni olish
             settings = self.db.get_org_settings()
-        
-        text = f"""
+            
+            if not settings:
+                # Agar sozlamalar yo'q bo'lsa, default yaratish
+                self.db.create_org_settings("Yangi Tashkilot")
+                settings = self.db.get_org_settings()
+            
+            # Settings tekshiruvi
+            if not settings:
+                logger.error("Sozlamalar yaratib bo'lmadi!")
+                await self.send_message(update, context, "❌ Xatolik: Sozlamalar yaratib bo'lmadi!")
+                return
+            
+            # Default qiymatlar
+            org_name = settings.get('org_name', 'Sozlanmagan')
+            timezone = settings.get('timezone', 'Asia/Tashkent')
+            penalty_amount = settings.get('penalty_amount', 1000000)
+            work_hours_start = settings.get('work_hours_start', 9)
+            work_hours_end = settings.get('work_hours_end', 18)
+            
+            text = f"""
 ⚙️ <b>Tashkilot sozlamalari</b>
 
-🏢 <b>Tashkilot nomi:</b> {settings['org_name']}
-🌍 <b>Vaqt zonasi:</b> {settings['timezone']}
-💰 <b>Jarima miqdori:</b> {format_penalty_amount(settings['penalty_amount'])}
-🕘 <b>Ish soati:</b> {settings['work_hours_start']:02d}:00 - {settings['work_hours_end']:02d}:00
+🏢 <b>Tashkilot nomi:</b> {org_name}
+🌍 <b>Vaqt zonasi:</b> {timezone}
+💰 <b>Jarima miqdori:</b> {format_penalty_amount(penalty_amount)}
+🕘 <b>Ish soati:</b> {work_hours_start:02d}:00 - {work_hours_end:02d}:00
 
 Quyidagi sozlamalardan birini tanlang:
-        """
-        
-        keyboard = [
-            [InlineKeyboardButton("🏢 Tashkilot nomi", callback_data="edit_org_name")],
-            [InlineKeyboardButton("🌍 Vaqt zonasi", callback_data="edit_timezone")],
-            [InlineKeyboardButton("💰 Jarima miqdori", callback_data="edit_penalty")],
-            [InlineKeyboardButton("🕘 Ish soati", callback_data="edit_work_hours")],
-            [InlineKeyboardButton("🔙 Orqaga", callback_data="main_menu")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await self.send_message(update, context, text, reply_markup)
+            """
+            
+            keyboard = [
+                [InlineKeyboardButton("🏢 Tashkilot nomi", callback_data="edit_org_name")],
+                [InlineKeyboardButton("🌍 Vaqt zonasi", callback_data="edit_timezone")],
+                [InlineKeyboardButton("💰 Jarima miqdori", callback_data="edit_penalty")],
+                [InlineKeyboardButton("🕘 Ish soati", callback_data="edit_work_hours")],
+                [InlineKeyboardButton("🔙 Orqaga", callback_data="main_menu")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await self.send_message(update, context, text, reply_markup)
+        except Exception as e:
+            logger.error(f"Sozlamalar menyusida xatolik: {e}", exc_info=True)
+            await self.send_message(update, context, "❌ Xatolik yuz berdi! Iltimos, qayta urinib ko'ring.")
     
     async def handle_edit_org_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Tashkilot nomini tahrirlash"""
