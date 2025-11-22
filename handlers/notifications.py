@@ -54,7 +54,7 @@ class NotificationHandler:
             FROM tasks t
             JOIN users u ON t.assigned_to = u.id
             WHERE t.status IN ('SCHEDULED', 'IN_PROGRESS', 'WAITING_APPROVAL')
-            AND u.is_active = 1
+            AND u.is_active = TRUE
         """
         return self.db.execute_query(query)
     
@@ -124,7 +124,7 @@ class NotificationHandler:
         try:
             query = """
                 UPDATE tasks 
-                SET is_penalized = 1, penalty_amount = ?, updated_at = CURRENT_TIMESTAMP
+                SET is_penalized = TRUE, penalty_amount = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """
             self.db.execute_update(query, (DEFAULT_PENALTY_AMOUNT, task['id']))
