@@ -53,7 +53,7 @@ class NotificationHandler:
             SELECT t.*, u.telegram_id, u.full_name as assigned_name
             FROM tasks t
             JOIN users u ON t.assigned_to = u.id
-            WHERE t.status IN ('SCHEDULED', 'IN_PROGRESS', 'WAITING_APPROVAL')
+            WHERE t.status IN ('REJALASHTIRILGAN', 'JARAYONDA', 'TASDIQLASH_KUTILMOQDA')
             AND u.is_active = TRUE
         """
         return self.db.execute_query(query)
@@ -69,15 +69,17 @@ class NotificationHandler:
                 deadline = timezone('Asia/Tashkent').localize(deadline)
             
             # Vazifa boshlanish vaqtini tekshirish
-            if task['status'] == 'SCHEDULED':
+            if task['status'] == 'REJALASHTIRILGAN':
                 start_time = datetime.fromisoformat(task['start_at'])
                 if start_time.tzinfo is None:
                     from pytz import timezone
                     start_time = timezone('Asia/Tashkent').localize(start_time)
                 
                 if now >= start_time:
-                    # Vazifani IN_PROGRESS holatiga o'tkazish
-                    self.db.update_task_status(task['id'], 'IN_PROGRESS')
+                    # Vazifani JARAYONDA holatiga o'tkazish
+                    self.db.update_task_status(task['id'], 'JARAYONDA')
+                    # Statusni yangilash
+                    task['status'] = 'JARAYONDA'
                     
                     # Eslatma yuborish
                     await self.send_task_started_notification(task)
@@ -93,7 +95,7 @@ class NotificationHandler:
                 reminder_interval_hours = reminder_interval_minutes / 60
                 
                 # Faol vazifalarni sozlamadan interval bo'yicha qayta yuborish
-                if task['status'] in ['IN_PROGRESS', 'SCHEDULED']:
+                if task['status'] in ['JARAYONDA', 'REJALASHTIRILGAN']:
                     await self.check_periodic_reminder(task, reminder_interval_minutes)
                 
                 # Deadline yaqinlashganda eslatmalar
@@ -193,6 +195,7 @@ Vazifani davom ettiring!
         """Sozlamadan interval bo'yicha vazifalarni qayta yuborish"""
         try:
             if not self.bot:
+                logger.warning("Bot None, eslatma yuborib bo'lmadi")
                 return
                 
             # Vazifaning yaratilgan vaqtini olish
@@ -205,23 +208,25 @@ Vazifani davom ettiring!
             # Vaqt farqini minutlarda hisoblash
             time_since_created = (now - created_at).total_seconds() / 60
             
+            logger.debug(f"Periodik eslatma tekshiruvi: task={task.get('title', 'Noma\'lum')}, interval={interval_minutes} min, time_since={time_since_created:.1f} min")
+            
             # Agar interval o'tgan bo'lsa, ogohlantirish yuborish
             # Har interval_minutes da bir marta yuborish
             if time_since_created >= interval_minutes:
                 # Interval ga bo'linadigan vaqtda yuborish
-                # Masalan: interval = 1 minut, vaqt = 1.0, 2.0, 3.0... minut
-                # Masalan: interval = 5 minut, vaqt = 5.0, 10.0, 15.0... minut
                 remainder = time_since_created % interval_minutes
                 
                 # Faqat interval boshlanganda yuborish (0.5 minut ichida)
                 # Bu har minut tekshirilganda faqat bir marta yuborilishini ta'minlaydi
-                # Masalan: interval = 1 minut, remainder = 0.0, 0.1, 0.2... 0.9
-                # Masalan: interval = 5 minut, remainder = 0.0, 0.1, 0.2... 4.9
                 if remainder < 0.5:
                     # Interval boshlanganda yuborish
                     await self.send_periodic_task_reminder(task, interval_minutes)
                     task_title = task.get('title', 'Noma\'lum')
                     logger.info(f"✅ Periodik eslatma yuborildi: {task_title}, interval: {interval_minutes} minut, vaqt: {time_since_created:.1f} minut, remainder: {remainder:.2f}")
+                else:
+                    logger.debug(f"Periodik eslatma o'tkazib yuborildi: remainder={remainder:.2f} >= 0.5")
+            else:
+                logger.debug(f"Periodik eslatma o'tkazib yuborildi: time_since={time_since_created:.1f} < interval={interval_minutes}")
                 
         except Exception as e:
             logger.error(f"Periodik eslatmani tekshirishda xatolik: {e}", exc_info=True)
