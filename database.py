@@ -256,24 +256,38 @@ class Database:
     def create_user(self, telegram_id: int, full_name: str, username: str = None, 
                    phone: str = None, role: str = 'WORKER') -> int:
         """Yangi foydalanuvchi yaratish"""
-        query = """
-            INSERT INTO users (telegram_id, full_name, username, phone, role)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id
-        """
-        result = self.execute_query(query, (telegram_id, full_name, username, phone, role))
-        user_id = result[0]['id'] if result else None
-        
-        if not user_id:
-            raise Exception("Foydalanuvchi yaratib bo'lmadi")
-        
-        # Agar Super Admin ID belgilangan bo'lsa va bu foydalanuvchi hali SUPER_ADMIN emas bo'lsa
-        from config import SUPER_ADMIN_TELEGRAM_ID
-        if SUPER_ADMIN_TELEGRAM_ID and str(telegram_id) == str(SUPER_ADMIN_TELEGRAM_ID) and role != 'SUPER_ADMIN':
-            self.update_user_role(user_id, 'SUPER_ADMIN')
-            self.add_audit_log(user_id, 'AUTO_SUPER_ADMIN', f"Avtomatik Super Admin yaratildi: {full_name}")
-        
-        return user_id
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            query = """
+                INSERT INTO users (telegram_id, full_name, username, phone, role)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """
+            cursor.execute(query, (telegram_id, full_name, username, phone, role))
+            result = cursor.fetchone()
+            user_id = result['id'] if result else None
+            conn.commit()
+            
+            if not user_id:
+                raise Exception("Foydalanuvchi yaratib bo'lmadi")
+            
+            # Agar Super Admin ID belgilangan bo'lsa va bu foydalanuvchi hali SUPER_ADMIN emas bo'lsa
+            from config import SUPER_ADMIN_TELEGRAM_ID
+            if SUPER_ADMIN_TELEGRAM_ID and str(telegram_id) == str(SUPER_ADMIN_TELEGRAM_ID) and role != 'SUPER_ADMIN':
+                self.update_user_role(user_id, 'SUPER_ADMIN')
+                self.add_audit_log(user_id, 'AUTO_SUPER_ADMIN', f"Avtomatik Super Admin yaratildi: {full_name}")
+            
+            return user_id
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Foydalanuvchi yaratishda xatolik: {e}")
+            raise
+        finally:
+            if conn:
+                self.return_connection(conn)
     
     def update_user_role(self, user_id: int, new_role: str) -> bool:
         """Foydalanuvchi rolini yangilash"""

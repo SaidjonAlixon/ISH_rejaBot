@@ -38,6 +38,16 @@ class BaseHandler:
             )
             # Yangi yaratilgan foydalanuvchini olish
             db_user = self.db.get_user_by_telegram_id(user.id)
+            
+            # Agar foydalanuvchi hali ham topilmasa, xatolik
+            if not db_user:
+                logger.error(f"Foydalanuvchi yaratildi (ID: {db_user_id}), lekin keyin topilmadi!")
+                # Qayta urinish
+                db_user = self.db.get_user_by_id(db_user_id)
+                if not db_user:
+                    raise Exception(f"Foydalanuvchi yaratib bo'lmadi: telegram_id={user.id}")
+            
+            # Audit log
             self.db.add_audit_log(db_user['id'], 'USER_REGISTERED', f"Yangi foydalanuvchi yaratildi (Rol: {role})")
         
         return db_user
