@@ -13,6 +13,8 @@ class NotificationHandler:
         self.db = db
         self.bot = bot
         self.is_running = False
+        # Oxirgi ogohlantirish vaqtini saqlash: {task_id: last_reminder_time}
+        self.last_reminder_times = {}
     
     async def start_notifications(self):
         """Eslatmalar tizimini ishga tushirish"""
@@ -222,45 +224,46 @@ Vazifani davom ettiring!
                 logger.warning("Bot None, eslatma yuborib bo'lmadi")
                 return
                 
-            # Vazifaning yaratilgan vaqtini olish
+            task_id = task['id']
             now = get_uzbek_time()
             
-            # created_at ni to'g'ri parse qilish
-            if isinstance(task['created_at'], str):
-                created_at = datetime.fromisoformat(task['created_at'])
-            elif isinstance(task['created_at'], datetime):
-                created_at = task['created_at']
-            else:
-                logger.error(f"Noto'g'ri created_at format: {type(task['created_at'])}")
-                return
+            # Oxirgi ogohlantirish vaqtini olish
+            last_reminder = self.last_reminder_times.get(task_id)
+            
+            # Agar oxirgi ogohlantirish yo'q bo'lsa, vazifaning yaratilgan vaqtini ishlatish
+            if last_reminder is None:
+                # created_at ni to'g'ri parse qilish
+                if isinstance(task['created_at'], str):
+                    created_at = datetime.fromisoformat(task['created_at'])
+                elif isinstance(task['created_at'], datetime):
+                    created_at = task['created_at']
+                else:
+                    logger.error(f"Noto'g'ri created_at format: {type(task['created_at'])}")
+                    return
+                    
+                if created_at.tzinfo is None:
+                    from pytz import timezone
+                    created_at = timezone('Asia/Tashkent').localize(created_at)
                 
-            if created_at.tzinfo is None:
-                from pytz import timezone
-                created_at = timezone('Asia/Tashkent').localize(created_at)
+                last_reminder = created_at
             
             # Vaqt farqini minutlarda hisoblash
-            time_since_created = (now - created_at).total_seconds() / 60
+            time_since_last_reminder = (now - last_reminder).total_seconds() / 60
             
             task_title = task.get('title', 'Noma\'lum')
-            logger.debug(f"Periodik eslatma tekshiruvi: task={task_title}, interval={interval_minutes} min, time_since={time_since_created:.1f} min")
+            logger.debug(f"Periodik eslatma tekshiruvi: task={task_title}, interval={interval_minutes} min, time_since_last={time_since_last_reminder:.1f} min")
             
             # Agar interval o'tgan bo'lsa, ogohlantirish yuborish
-            # Har interval_minutes da bir marta yuborish
-            if time_since_created >= interval_minutes:
-                # Interval ga bo'linadigan vaqtda yuborish
-                remainder = time_since_created % interval_minutes
+            if time_since_last_reminder >= interval_minutes:
+                # Ogohlantirish yuborish
+                await self.send_periodic_task_reminder(task, interval_minutes)
                 
-                # Faqat interval boshlanganda yuborish (0.5 minut ichida)
-                # Bu har minut tekshirilganda faqat bir marta yuborilishini ta'minlaydi
-                if remainder < 0.5:
-                    # Interval boshlanganda yuborish
-                    await self.send_periodic_task_reminder(task, interval_minutes)
-                    task_title = task.get('title', 'Noma\'lum')
-                    logger.info(f"✅ Periodik eslatma yuborildi: {task_title}, interval: {interval_minutes} minut, vaqt: {time_since_created:.1f} minut, remainder: {remainder:.2f}")
-                else:
-                    logger.debug(f"Periodik eslatma o'tkazib yuborildi: remainder={remainder:.2f} >= 0.5")
+                # Oxirgi ogohlantirish vaqtini yangilash
+                self.last_reminder_times[task_id] = now
+                
+                logger.info(f"✅ Periodik eslatma yuborildi: {task_title}, interval: {interval_minutes} minut, time_since_last: {time_since_last_reminder:.1f} minut")
             else:
-                logger.debug(f"Periodik eslatma o'tkazib yuborildi: time_since={time_since_created:.1f} < interval={interval_minutes}")
+                logger.debug(f"Periodik eslatma o'tkazib yuborildi: time_since_last={time_since_last_reminder:.1f} < interval={interval_minutes}")
                 
         except Exception as e:
             logger.error(f"Periodik eslatmani tekshirishda xatolik: {e}", exc_info=True)
