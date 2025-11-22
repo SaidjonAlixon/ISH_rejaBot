@@ -62,7 +62,15 @@ class NotificationHandler:
         """Vazifa uchun eslatmalarni tekshirish"""
         try:
             now = get_uzbek_time()
-            deadline = datetime.fromisoformat(task['deadline'])
+            
+            # Deadline ni to'g'ri parse qilish
+            if isinstance(task['deadline'], str):
+                deadline = datetime.fromisoformat(task['deadline'])
+            elif isinstance(task['deadline'], datetime):
+                deadline = task['deadline']
+            else:
+                logger.error(f"Noto'g'ri deadline format: {type(task['deadline'])}")
+                return
             
             if deadline.tzinfo is None:
                 from pytz import timezone
@@ -70,7 +78,14 @@ class NotificationHandler:
             
             # Vazifa boshlanish vaqtini tekshirish
             if task['status'] == 'REJALASHTIRILGAN':
-                start_time = datetime.fromisoformat(task['start_at'])
+                if isinstance(task['start_at'], str):
+                    start_time = datetime.fromisoformat(task['start_at'])
+                elif isinstance(task['start_at'], datetime):
+                    start_time = task['start_at']
+                else:
+                    logger.error(f"Noto'g'ri start_at format: {type(task['start_at'])}")
+                    return
+                    
                 if start_time.tzinfo is None:
                     from pytz import timezone
                     start_time = timezone('Asia/Tashkent').localize(start_time)
@@ -149,11 +164,20 @@ class NotificationHandler:
     async def send_task_started_notification(self, task: Dict[str, Any]):
         """Vazifa boshlangan eslatma"""
         try:
+            # Deadline ni formatlash
+            if isinstance(task['deadline'], str):
+                deadline = datetime.fromisoformat(task['deadline'])
+                deadline_str = format_datetime(deadline)
+            elif isinstance(task['deadline'], datetime):
+                deadline_str = format_datetime(task['deadline'])
+            else:
+                deadline_str = str(task['deadline'])
+            
             text = f"""
 🚀 <b>Vazifa boshladi!</b>
 
 📝 <b>Sarlavha:</b> {task['title']}
-⏰ <b>Deadline:</b> {format_datetime(deadline)}
+⏰ <b>Deadline:</b> {deadline_str}
 {get_priority_emoji(task['priority'])} <b>Ustuvorlik:</b> {task['priority']}
 
 Vazifani bajarishni boshlang!
@@ -200,7 +224,16 @@ Vazifani davom ettiring!
                 
             # Vazifaning yaratilgan vaqtini olish
             now = get_uzbek_time()
-            created_at = datetime.fromisoformat(task['created_at']) if isinstance(task['created_at'], str) else task['created_at']
+            
+            # created_at ni to'g'ri parse qilish
+            if isinstance(task['created_at'], str):
+                created_at = datetime.fromisoformat(task['created_at'])
+            elif isinstance(task['created_at'], datetime):
+                created_at = task['created_at']
+            else:
+                logger.error(f"Noto'g'ri created_at format: {type(task['created_at'])}")
+                return
+                
             if created_at.tzinfo is None:
                 from pytz import timezone
                 created_at = timezone('Asia/Tashkent').localize(created_at)
