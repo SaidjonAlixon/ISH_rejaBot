@@ -57,6 +57,7 @@ class IshBot:
         # Message handlerlari
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         self.application.add_handler(MessageHandler(filters.CONTACT, self.handle_contact))
+        self.application.add_handler(MessageHandler(filters.PHOTO, self.handle_photo))
     
     async def handle_callback_query(self, update, context):
         """Callback querylarni boshqarish"""
@@ -102,6 +103,10 @@ class IshBot:
                 await self.task_handler.handle_task_assign(update, context)
             elif data.startswith("resubmit_task_"):
                 await self.task_handler.resubmit_handler.handle_resubmit_task(update, context)
+            elif data == "start_work":
+                await self.task_handler.handle_start_work(update, context)
+            elif data == "end_work":
+                await self.task_handler.handle_end_work(update, context)
             
             # Admin search and edit handlers
             elif data == "search_tasks":
@@ -193,8 +198,6 @@ class IshBot:
                 await self.settings_handler.handle_edit_work_hours(update, context)
             elif data.startswith("timezone_"):
                 await self.settings_handler.handle_timezone_selection(update, context)
-            elif data.startswith("work_hours_"):
-                await self.settings_handler.handle_work_hours_selection(update, context)
             
             else:
                 await query.answer("❌ Noma'lum buyruq!")
@@ -242,6 +245,12 @@ class IshBot:
                 await self.task_handler.handle_extension_comment_input(update, context)
             elif state.startswith('reject_extension_'):
                 await self.task_handler.handle_rejection_reason_input(update, context)
+            elif state == 'waiting_start_photo':
+                # Rasm kutilmoqda, boshqa narsa yuborilgan
+                await update.message.reply_text("❌ Iltimos faqat kamera oldida tushgan rasmiz yuboring!")
+            elif state == 'waiting_end_photo':
+                # Rasm kutilmoqda, boshqa narsa yuborilgan
+                await update.message.reply_text("❌ Iltimos faqat kamera oldida tushgan rasmiz yuboring!")
         
         elif user['id'] in self.user_handler.user_states:
             state = self.user_handler.user_states[user['id']]
@@ -256,12 +265,32 @@ class IshBot:
                 await self.settings_handler.handle_org_name_input(update, context)
             elif state == 'editing_penalty':
                 await self.settings_handler.handle_penalty_input(update, context)
+            elif state == 'editing_work_start':
+                await self.settings_handler.handle_work_start_input(update, context)
+            elif state == 'editing_work_end':
+                await self.settings_handler.handle_work_end_input(update, context)
         
         else:
             # Oddiy xabar
             await update.message.reply_text(
                 "🤖 Bot ishlamoqda. /start komandasini bosing."
             )
+    
+    async def handle_photo(self, update, context):
+        """Rasm xabarlarini boshqarish"""
+        user = self.start_handler.get_user(update)
+        
+        # Foydalanuvchi holatini tekshirish
+        if user['id'] in self.task_handler.user_states:
+            state = self.task_handler.user_states[user['id']]
+            
+            if state == 'waiting_start_photo':
+                await self.task_handler.handle_start_work_photo(update, context)
+            elif state == 'waiting_end_photo':
+                await self.task_handler.handle_end_work_photo(update, context)
+        else:
+            # Agar rasm kutilmagan bo'lsa
+            await update.message.reply_text("❌ Iltimos faqat kamera oldida tushgan rasmiz yuboring!")
     
     async def handle_contact(self, update, context):
         """Contact xabarlarini boshqarish"""

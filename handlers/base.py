@@ -87,7 +87,9 @@ class BaseHandler:
             ]
         else:  # WORKER
             keyboard = [
-                [InlineKeyboardButton("🧾 Mening vazifalarim", callback_data="my_tasks")]
+                [InlineKeyboardButton("🧾 Mening vazifalarim", callback_data="my_tasks")],
+                [InlineKeyboardButton("▶️ Ish vaqtim boshladim", callback_data="start_work")],
+                [InlineKeyboardButton("✅ Ish vaqtim tugadi", callback_data="end_work")]
             ]
         
         return InlineKeyboardMarkup(keyboard)

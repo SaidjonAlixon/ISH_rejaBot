@@ -7,6 +7,10 @@ load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 DATABASE_URL = 'sqlite:///ishbot.db'
 
+# Kanal sozlamalari
+WORK_START_CHANNEL_ID = os.getenv('WORK_START_CHANNEL_ID')  # Ish boshlangan kanal ID
+WORK_END_CHANNEL_ID = os.getenv('WORK_END_CHANNEL_ID')  # Ish tugagan kanal ID
+
 # Super Admin ID (ixtiyoriy)
 SUPER_ADMIN_TELEGRAM_ID_STR = os.getenv('SUPER_ADMIN_TELEGRAM_ID')
 SUPER_ADMIN_TELEGRAM_ID = int(SUPER_ADMIN_TELEGRAM_ID_STR) if SUPER_ADMIN_TELEGRAM_ID_STR else None

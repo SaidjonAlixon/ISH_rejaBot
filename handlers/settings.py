@@ -122,20 +122,17 @@ Masalan: 1000000
             await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
             return
         
+        # Avval ish boshlanish vaqtini so'rash
+        self.user_states[user['id']] = 'editing_work_start'
+        
         text = """
 🕘 <b>Ish soatini tahrirlash</b>
 
-Ish soatini tanlang:
+Iltimos, ish boshlanish vaqtini yuboring (HH:MM formatida):
+Masalan: 09:00
         """
         
-        keyboard = [
-            [InlineKeyboardButton("08:00 - 17:00", callback_data="work_hours_8_17")],
-            [InlineKeyboardButton("09:00 - 18:00", callback_data="work_hours_9_18")],
-            [InlineKeyboardButton("10:00 - 19:00", callback_data="work_hours_10_19")],
-            [InlineKeyboardButton("🔙 Orqaga", callback_data="settings_menu")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = self.create_back_button("settings_menu")
         await self.send_message(update, context, text, reply_markup)
     
     async def handle_org_name_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -232,30 +229,120 @@ Ish soatini tanlang:
         reply_markup = self.create_back_button("settings_menu")
         await self.send_message(update, context, text, reply_markup)
     
-    async def handle_work_hours_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Ish soati tanlash"""
+    async def handle_work_start_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish boshlanish vaqtini kiritish"""
         user = self.get_user(update)
         
-        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
-            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+        if self.user_states.get(user['id']) != 'editing_work_start':
             return
         
-        data = update.callback_query.data.split('_')
-        start_hour = int(data[2])
-        end_hour = int(data[3])
+        try:
+            time_str = update.message.text.strip()
+            
+            # Vaqt formatini tekshirish (HH:MM)
+            if ':' not in time_str:
+                await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 09:00")
+                return
+            
+            parts = time_str.split(':')
+            if len(parts) != 2:
+                await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 09:00")
+                return
+            
+            hour = int(parts[0])
+            minute = int(parts[1])
+            
+            if hour < 0 or hour > 23:
+                await self.send_message(update, context, "❌ Soat 0-23 orasida bo'lishi kerak!")
+                return
+            
+            if minute < 0 or minute > 59:
+                await self.send_message(update, context, "❌ Daqiqa 0-59 orasida bo'lishi kerak!")
+                return
+            
+            # Ish boshlanish vaqtini saqlash va keyingi bosqichga o'tish
+            context.user_data['work_start_hour'] = hour
+            context.user_data['work_start_minute'] = minute
+            self.user_states[user['id']] = 'editing_work_end'
+            
+            text = f"""
+✅ <b>Ish boshlanish vaqti qabul qilindi:</b> {hour:02d}:{minute:02d}
+
+Iltimos, ish tugash vaqtini yuboring (HH:MM formatida):
+Masalan: 18:00
+            """
+            
+            reply_markup = self.create_back_button("settings_menu")
+            await self.send_message(update, context, text, reply_markup)
+            
+        except (ValueError, IndexError):
+            await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 09:00")
+    
+    async def handle_work_end_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish tugash vaqtini kiritish va saqlash"""
+        user = self.get_user(update)
         
-        # Ish soatini yangilash
-        query = "UPDATE org_settings SET work_hours_start = ?, work_hours_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
-        self.db.execute_update(query, (start_hour, end_hour))
+        if self.user_states.get(user['id']) != 'editing_work_end':
+            return
         
-        # Audit log
-        self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Ish soati yangilandi: {start_hour:02d}:00 - {end_hour:02d}:00")
-        
-        text = f"""
+        try:
+            time_str = update.message.text.strip()
+            
+            # Vaqt formatini tekshirish (HH:MM)
+            if ':' not in time_str:
+                await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 18:00")
+                return
+            
+            parts = time_str.split(':')
+            if len(parts) != 2:
+                await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 18:00")
+                return
+            
+            hour = int(parts[0])
+            minute = int(parts[1])
+            
+            if hour < 0 or hour > 23:
+                await self.send_message(update, context, "❌ Soat 0-23 orasida bo'lishi kerak!")
+                return
+            
+            if minute < 0 or minute > 59:
+                await self.send_message(update, context, "❌ Daqiqa 0-59 orasida bo'lishi kerak!")
+                return
+            
+            # Ish boshlanish vaqtini olish
+            start_hour = context.user_data.get('work_start_hour')
+            start_minute = context.user_data.get('work_start_minute')
+            
+            if start_hour is None or start_minute is None:
+                await self.send_message(update, context, "❌ Xatolik! Qaytadan boshlang.")
+                del self.user_states[user['id']]
+                return
+            
+            # Ish soatini yangilash (faqat soatni saqlaymiz, chunki database struktura shunday)
+            # Foydalanuvchi daqiqani ham kiritishi mumkin, lekin biz faqat soatni saqlaymiz
+            query = "UPDATE org_settings SET work_hours_start = ?, work_hours_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
+            self.db.execute_update(query, (start_hour, hour))
+            
+            # Holatni tozalash
+            del self.user_states[user['id']]
+            if 'work_start_hour' in context.user_data:
+                del context.user_data['work_start_hour']
+            if 'work_start_minute' in context.user_data:
+                del context.user_data['work_start_minute']
+            
+            # Audit log (ko'rsatish uchun daqiqani ham qo'shamiz)
+            self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Ish soati yangilandi: {start_hour:02d}:{start_minute:02d} - {hour:02d}:{minute:02d}")
+            
+            text = f"""
 ✅ <b>Ish soati yangilandi!</b>
 
-🕘 <b>Yangi ish soati:</b> {start_hour:02d}:00 - {end_hour:02d}:00
-        """
-        
-        reply_markup = self.create_back_button("settings_menu")
-        await self.send_message(update, context, text, reply_markup)
+🕘 <b>Yangi ish soati:</b> {start_hour:02d}:{start_minute:02d} - {hour:02d}:{minute:02d}
+
+<i>Eslatma: Database da faqat soat saqlanadi, daqiqa 0 ga tenglashtiriladi.</i>
+            """
+            
+            reply_markup = self.create_back_button("settings_menu")
+            await self.send_message(update, context, text, reply_markup)
+            
+        except (ValueError, IndexError):
+            await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 18:00")

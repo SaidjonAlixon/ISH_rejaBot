@@ -1470,3 +1470,311 @@ Ishchiga xabar yuborildi.
         except Exception as e:
             logger.error(f"Deadline uzaytirish rad etishda xatolik: {e}")
             await self.send_message(update, context, "❌ Xatolik yuz berdi!")
+    
+    async def handle_start_work(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish boshlash - ish soati ma'lumotlari"""
+        user = self.get_user(update)
+        
+        if user['role'] != UserRole.WORKER:
+            await self.send_message(update, context, "❌ Bu funksiya faqat ishchilar uchun!")
+            return
+        
+        # Tashkilot sozlamalarini olish
+        org_settings = self.db.get_org_settings()
+        if not org_settings:
+            self.db.create_org_settings("Yangi Tashkilot")
+            org_settings = self.db.get_org_settings()
+        
+        work_start_hour = org_settings.get('work_hours_start', 9)
+        work_end_hour = org_settings.get('work_hours_end', 18)
+        
+        # Hozirgi vaqt
+        now = get_uzbek_time()
+        work_start_time = now.replace(hour=work_start_hour, minute=0, second=0, microsecond=0)
+        work_end_time = now.replace(hour=work_end_hour, minute=0, second=0, microsecond=0)
+        
+        # Ish soati ma'lumotlari
+        work_start_str = f"{work_start_hour:02d}:00"
+        work_end_str = f"{work_end_hour:02d}:00"
+        
+        # Vaqtni tekshirish va real vaqtni hisoblash
+        if now < work_start_time:
+            # Ish soati boshlanmagan
+            time_until_start = work_start_time - now
+            hours = int(time_until_start.total_seconds() / 3600)
+            minutes = int((time_until_start.total_seconds() % 3600) / 60)
+            time_text = f"⏳ Ish vaqtingiz {work_start_str} da boshlanadi"
+            if hours > 0:
+                time_text += f" ({hours} soat {minutes} daqiqa qoldi)"
+            else:
+                time_text += f" ({minutes} daqiqa qoldi)"
+        elif now >= work_start_time and now < work_end_time:
+            # Ish soati boshlangan - real vaqtni hisoblash
+            time_elapsed = now - work_start_time
+            hours_elapsed = int(time_elapsed.total_seconds() / 3600)
+            minutes_elapsed = int((time_elapsed.total_seconds() % 3600) / 60)
+            
+            # Qolgan vaqtni hisoblash
+            time_remaining = work_end_time - now
+            hours_remaining = int(time_remaining.total_seconds() / 3600)
+            minutes_remaining = int((time_remaining.total_seconds() % 3600) / 60)
+            
+            time_text = f"✅ Ish vaqtingiz {work_start_str} da boshlangan"
+            if hours_elapsed > 0:
+                time_text += f"\n⏱️ Ish vaqti: {hours_elapsed} soat {minutes_elapsed} daqiqa o'tdi"
+            else:
+                time_text += f"\n⏱️ Ish vaqti: {minutes_elapsed} daqiqa o'tdi"
+            
+            if hours_remaining > 0:
+                time_text += f"\n⏳ Qolgan vaqt: {hours_remaining} soat {minutes_remaining} daqiqa"
+            else:
+                time_text += f"\n⏳ Qolgan vaqt: {minutes_remaining} daqiqa"
+        else:
+            # Ish soati tugagan - real vaqtni hisoblash
+            time_elapsed = work_end_time - work_start_time
+            hours_elapsed = int(time_elapsed.total_seconds() / 3600)
+            minutes_elapsed = int((time_elapsed.total_seconds() % 3600) / 60)
+            
+            time_text = f"⏰ Ish vaqtingiz {work_start_str} da boshlangan va {work_end_str} da tugagan"
+            time_text += f"\n⏱️ Umumiy ish vaqti: {hours_elapsed} soat {minutes_elapsed} daqiqa"
+        
+        text = f"""
+▶️ <b>Ish vaqtim boshlandi</b>
+
+🕘 <b>Ish soati:</b> {work_start_str} - {work_end_str}
+
+{time_text}
+
+📸 <b>Iltimos kamera tagiga borib rasm tushub yuboring!</b>
+        """
+        
+        # Foydalanuvchi holatini o'rnatish - rasm kutish
+        self.user_states[user['id']] = 'waiting_start_photo'
+        
+        reply_markup = self.create_back_button("main_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_end_work(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish tugatish - ish soati ma'lumotlari"""
+        user = self.get_user(update)
+        
+        if user['role'] != UserRole.WORKER:
+            await self.send_message(update, context, "❌ Bu funksiya faqat ishchilar uchun!")
+            return
+        
+        # Tashkilot sozlamalarini olish
+        org_settings = self.db.get_org_settings()
+        if not org_settings:
+            self.db.create_org_settings("Yangi Tashkilot")
+            org_settings = self.db.get_org_settings()
+        
+        work_start_hour = org_settings.get('work_hours_start', 9)
+        work_end_hour = org_settings.get('work_hours_end', 18)
+        
+        # Hozirgi vaqt
+        now = get_uzbek_time()
+        work_end_time = now.replace(hour=work_end_hour, minute=0, second=0, microsecond=0)
+        
+        # Ish soati ma'lumotlari
+        work_start_str = f"{work_start_hour:02d}:00"
+        work_end_str = f"{work_end_hour:02d}:00"
+        
+        # Vaqtni tekshirish va real vaqtni hisoblash
+        work_start_time = now.replace(hour=work_start_hour, minute=0, second=0, microsecond=0)
+        
+        if now < work_end_time:
+            # Ish soati tugamagan
+            # O'tgan vaqtni hisoblash
+            if now >= work_start_time:
+                time_elapsed = now - work_start_time
+                hours_elapsed = int(time_elapsed.total_seconds() / 3600)
+                minutes_elapsed = int((time_elapsed.total_seconds() % 3600) / 60)
+            else:
+                hours_elapsed = 0
+                minutes_elapsed = 0
+            
+            # Qolgan vaqtni hisoblash
+            time_until_end = work_end_time - now
+            hours_remaining = int(time_until_end.total_seconds() / 3600)
+            minutes_remaining = int((time_until_end.total_seconds() % 3600) / 60)
+            
+            time_text = f"⏳ Ish vaqtingiz {work_end_str} da tugaydi"
+            if hours_remaining > 0:
+                time_text += f" ({hours_remaining} soat {minutes_remaining} daqiqa qoldi)"
+            else:
+                time_text += f" ({minutes_remaining} daqiqa qoldi)"
+            
+            if now >= work_start_time:
+                if hours_elapsed > 0:
+                    time_text += f"\n⏱️ Ish vaqti: {hours_elapsed} soat {minutes_elapsed} daqiqa o'tdi"
+                else:
+                    time_text += f"\n⏱️ Ish vaqti: {minutes_elapsed} daqiqa o'tdi"
+        else:
+            # Ish soati tugagan - real vaqtni hisoblash
+            time_elapsed = work_end_time - work_start_time
+            hours_elapsed = int(time_elapsed.total_seconds() / 3600)
+            minutes_elapsed = int((time_elapsed.total_seconds() % 3600) / 60)
+            
+            time_text = f"✅ Ish vaqtingiz {work_end_str} da tugagan"
+            time_text += f"\n⏱️ Umumiy ish vaqti: {hours_elapsed} soat {minutes_elapsed} daqiqa"
+        
+        text = f"""
+✅ <b>Ish vaqtim tugatdi</b>
+
+🕘 <b>Ish soati:</b> {work_start_str} - {work_end_str}
+
+{time_text}
+
+📸 <b>Iltimos kamera tagiga borib rasm tushub yuboring!</b>
+        """
+        
+        # Foydalanuvchi holatini o'rnatish - rasm kutish
+        self.user_states[user['id']] = 'waiting_end_photo'
+        
+        reply_markup = self.create_back_button("main_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    
+    async def handle_start_work_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish boshlash uchun rasm qabul qilish va kanalga yuborish"""
+        user = self.get_user(update)
+        
+        # Rasm fayl ID sini olish
+        photo = update.message.photo
+        if not photo:
+            await update.message.reply_text("❌ Iltimos faqat kamera oldida tushgan rasmiz yuboring!")
+            return
+        
+        # Eng katta rasmni olish
+        photo_file = photo[-1]
+        file_id = photo_file.file_id
+        
+        # Tashkilot sozlamalarini olish
+        org_settings = self.db.get_org_settings()
+        if not org_settings:
+            self.db.create_org_settings("Yangi Tashkilot")
+            org_settings = self.db.get_org_settings()
+        
+        work_start_hour = org_settings.get('work_hours_start', 9)
+        work_end_hour = org_settings.get('work_hours_end', 18)
+        work_start_str = f"{work_start_hour:02d}:00"
+        work_end_str = f"{work_end_hour:02d}:00"
+        
+        # Hozirgi vaqt
+        now = get_uzbek_time()
+        current_time = format_datetime(now)
+        
+        # Audit log
+        self.db.add_audit_log(user['id'], 'WORK_STARTED', f"Ish boshladi: {user['full_name']}")
+        
+        # Kanalga yuborish uchun matn
+        from config import WORK_START_CHANNEL_ID
+        if WORK_START_CHANNEL_ID:
+            caption = f"""
+▶️ <b>ISH BOSHLANDI</b>
+
+👤 <b>Ishchi:</b> {user['full_name']}
+📱 <b>Telefon:</b> {user.get('phone', 'Kiritilmagan')}
+🆔 <b>ID:</b> {user['telegram_id']}
+
+🕘 <b>Ish soati:</b> {work_start_str} - {work_end_str}
+📅 <b>Ish boshlangan vaqt:</b> {current_time}
+            """
+            
+            try:
+                await context.bot.send_photo(
+                    chat_id=WORK_START_CHANNEL_ID,
+                    photo=file_id,
+                    caption=caption,
+                    parse_mode='HTML'
+                )
+            except Exception as e:
+                logger.error(f"Kanalga rasm yuborishda xatolik: {e}")
+        
+        # Foydalanuvchi holatini tozalash
+        self.user_states.pop(user['id'], None)
+        
+        # Foydalanuvchiga javob
+        text = f"""
+✅ <b>Rasm qabul qilindi va kanalga yuborildi!</b>
+
+🕘 <b>Ish soati:</b> {work_start_str} - {work_end_str}
+📅 <b>Vaqt:</b> {current_time}
+
+Ishingiz muvaffaqiyatli boshlandi!
+        """
+        
+        reply_markup = self.create_back_button("main_menu")
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
+    
+    async def handle_end_work_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ish tugatish uchun rasm qabul qilish va kanalga yuborish"""
+        user = self.get_user(update)
+        
+        # Rasm fayl ID sini olish
+        photo = update.message.photo
+        if not photo:
+            await update.message.reply_text("❌ Iltimos faqat kamera oldida tushgan rasmiz yuboring!")
+            return
+        
+        # Eng katta rasmni olish
+        photo_file = photo[-1]
+        file_id = photo_file.file_id
+        
+        # Tashkilot sozlamalarini olish
+        org_settings = self.db.get_org_settings()
+        if not org_settings:
+            self.db.create_org_settings("Yangi Tashkilot")
+            org_settings = self.db.get_org_settings()
+        
+        work_start_hour = org_settings.get('work_hours_start', 9)
+        work_end_hour = org_settings.get('work_hours_end', 18)
+        work_start_str = f"{work_start_hour:02d}:00"
+        work_end_str = f"{work_end_hour:02d}:00"
+        
+        # Hozirgi vaqt
+        now = get_uzbek_time()
+        current_time = format_datetime(now)
+        
+        # Audit log
+        self.db.add_audit_log(user['id'], 'WORK_ENDED', f"Ish tugadi: {user['full_name']}")
+        
+        # Kanalga yuborish uchun matn
+        from config import WORK_END_CHANNEL_ID
+        if WORK_END_CHANNEL_ID:
+            caption = f"""
+✅ <b>ISH TUGATDI</b>
+
+👤 <b>Ishchi:</b> {user['full_name']}
+📱 <b>Telefon:</b> {user.get('phone', 'Kiritilmagan')}
+🆔 <b>ID:</b> {user['telegram_id']}
+
+🕘 <b>Ish soati:</b> {work_start_str} - {work_end_str}
+📅 <b>Ish tugatilgan vaqt:</b> {current_time}
+            """
+            
+            try:
+                await context.bot.send_photo(
+                    chat_id=WORK_END_CHANNEL_ID,
+                    photo=file_id,
+                    caption=caption,
+                    parse_mode='HTML'
+                )
+            except Exception as e:
+                logger.error(f"Kanalga rasm yuborishda xatolik: {e}")
+        
+        # Foydalanuvchi holatini tozalash
+        self.user_states.pop(user['id'], None)
+        
+        # Foydalanuvchiga javob
+        text = f"""
+✅ <b>Rasm qabul qilindi va kanalga yuborildi!</b>
+
+🕘 <b>Ish soati:</b> {work_start_str} - {work_end_str}
+📅 <b>Vaqt:</b> {current_time}
+
+Ishingiz muvaffaqiyatli yakunlandi!
+        """
+        
+        reply_markup = self.create_back_button("main_menu")
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')

@@ -175,27 +175,50 @@ class Database:
     
     def get_connection(self):
         """Ma'lumotlar bazasi ulanishini olish"""
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        # WAL mode ni yoqish (Write-Ahead Logging) - concurrent read/write uchun
+        conn.execute('PRAGMA journal_mode=WAL')
+        return conn
     
     def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """Sorovni bajarish va natijalarni qaytarish"""
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return results
+        conn = None
+        try:
+            conn = self.get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            results = [dict(row) for row in cursor.fetchall()]
+            return results
+        finally:
+            if conn:
+                conn.close()
     
     def execute_update(self, query: str, params: tuple = ()) -> int:
         """Yangilash/ochirish/joylashtirish so'rovini bajarish"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        conn.commit()
-        last_id = cursor.lastrowid
-        conn.close()
-        return last_id
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            conn.commit()
+            last_id = cursor.lastrowid
+            return last_id
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower():
+                # Agar database locked bo'lsa, qisqa kutib qayta urinib ko'ramiz
+                import time
+                time.sleep(0.1)
+                conn = self.get_connection()
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                conn.commit()
+                last_id = cursor.lastrowid
+                return last_id
+            raise
+        finally:
+            if conn:
+                conn.close()
     
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict[str, Any]]:
         """Telegram ID bo'yicha foydalanuvchini topish"""
