@@ -263,7 +263,10 @@ Masalan: 09:00
         """Ish boshlanish vaqtini kiritish"""
         user = self.get_user(update)
         
-        if self.user_states.get(user['id']) != 'editing_work_start':
+        # Holatni qat'iy tekshirish - faqat editing_work_start holatida ishlaydi
+        current_state = self.user_states.get(user['id'])
+        if current_state != 'editing_work_start':
+            logger.debug(f"handle_work_start_input: holat mos kelmaydi. Holat: {current_state}, kutilyapti: editing_work_start")
             return
         
         try:
@@ -312,7 +315,10 @@ Masalan: 18:00
         """Ish tugash vaqtini kiritish va saqlash"""
         user = self.get_user(update)
         
-        if self.user_states.get(user['id']) != 'editing_work_end':
+        # Holatni qat'iy tekshirish - faqat editing_work_end holatida ishlaydi
+        current_state = self.user_states.get(user['id'])
+        if current_state != 'editing_work_end':
+            logger.debug(f"handle_work_end_input: holat mos kelmaydi. Holat: {current_state}, kutilyapti: editing_work_end")
             return
         
         try:
