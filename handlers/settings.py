@@ -41,6 +41,17 @@ class SettingsHandler(BaseHandler):
             penalty_amount = settings.get('penalty_amount', 1000000)
             work_hours_start = settings.get('work_hours_start', 9)
             work_hours_end = settings.get('work_hours_end', 18)
+            reminder_interval_minutes = settings.get('reminder_interval_minutes', 180)  # Default 3 soat (180 minut)
+            
+            # Ogohlantirish vaqtini formatlash
+            reminder_hours = reminder_interval_minutes // 60
+            reminder_mins = reminder_interval_minutes % 60
+            if reminder_hours > 0 and reminder_mins > 0:
+                reminder_text = f"{reminder_hours} soat {reminder_mins} minut"
+            elif reminder_hours > 0:
+                reminder_text = f"{reminder_hours} soat"
+            else:
+                reminder_text = f"{reminder_mins} minut"
             
             text = f"""
 ⚙️ <b>Tashkilot sozlamalari</b>
@@ -49,6 +60,7 @@ class SettingsHandler(BaseHandler):
 🌍 <b>Vaqt zonasi:</b> {timezone}
 💰 <b>Jarima miqdori:</b> {format_penalty_amount(penalty_amount)}
 🕘 <b>Ish soati:</b> {work_hours_start:02d}:00 - {work_hours_end:02d}:00
+🔔 <b>Ogohlantirish vaqti:</b> Har {reminder_text}da
 
 Quyidagi sozlamalardan birini tanlang:
             """
@@ -58,6 +70,7 @@ Quyidagi sozlamalardan birini tanlang:
                 [InlineKeyboardButton("🌍 Vaqt zonasi", callback_data="edit_timezone")],
                 [InlineKeyboardButton("💰 Jarima miqdori", callback_data="edit_penalty")],
                 [InlineKeyboardButton("🕘 Ish soati", callback_data="edit_work_hours")],
+                [InlineKeyboardButton("🔔 Ogohlantirish", callback_data="edit_reminder")],
                 [InlineKeyboardButton("🔙 Orqaga", callback_data="main_menu")]
             ]
             
@@ -363,3 +376,119 @@ Masalan: 18:00
             
         except (ValueError, IndexError):
             await self.send_message(update, context, "❌ Noto'g'ri format! HH:MM formatida yuboring.\nMasalan: 18:00")
+    
+    async def handle_edit_reminder(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ogohlantirish vaqtini tahrirlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        text = """
+🔔 <b>Ogohlantirish vaqtini sozlash</b>
+
+Ishchilarning vazifalari qancha vaqtda qayta yuborilib ogohlantirilsin?
+
+Vaqt birligini tanlang:
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("⏰ Soat", callback_data="reminder_unit_hours")],
+            [InlineKeyboardButton("⏱ Minut", callback_data="reminder_unit_minutes")],
+            [InlineKeyboardButton("🔙 Orqaga", callback_data="settings_menu")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_reminder_unit_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ogohlantirish vaqti birligini tanlash"""
+        user = self.get_user(update)
+        
+        if not self.check_permission(user, [UserRole.SUPER_ADMIN]):
+            await self.send_message(update, context, "❌ Bu funksiya faqat Super Admin uchun!")
+            return
+        
+        query_data = update.callback_query.data
+        unit = query_data.split('_')[-1]  # 'hours' yoki 'minutes'
+        
+        # Holatni saqlash
+        context.user_data['reminder_unit'] = unit
+        self.user_states[user['id']] = 'editing_reminder_value'
+        
+        if unit == 'hours':
+            text = """
+⏰ <b>Ogohlantirish vaqti (Soat)</b>
+
+Har necha soatda ogohlantirish yuborilsin?
+Faqat raqam kiriting (masalan: 3)
+
+<i>Masalan: 3 kiritsangiz, har 3 soatda ogohlantirish yuboriladi</i>
+            """
+        else:
+            text = """
+⏱ <b>Ogohlantirish vaqti (Minut)</b>
+
+Har necha minutda ogohlantirish yuborilsin?
+Faqat raqam kiriting (masalan: 30)
+
+<i>Masalan: 30 kiritsangiz, har 30 minutda ogohlantirish yuboriladi</i>
+            """
+        
+        reply_markup = self.create_back_button("settings_menu")
+        await self.send_message(update, context, text, reply_markup)
+    
+    async def handle_reminder_value_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ogohlantirish vaqti qiymatini kiritish"""
+        user = self.get_user(update)
+        
+        if self.user_states.get(user['id']) != 'editing_reminder_value':
+            return
+        
+        try:
+            value = int(update.message.text.strip())
+            
+            if value <= 0:
+                await self.send_message(update, context, "❌ Vaqt 0 dan katta bo'lishi kerak!")
+                return
+            
+            unit = context.user_data.get('reminder_unit')
+            if not unit:
+                await self.send_message(update, context, "❌ Xatolik! Qaytadan boshlang.")
+                del self.user_states[user['id']]
+                return
+            
+            # Minutga o'tkazish
+            if unit == 'hours':
+                reminder_minutes = value * 60
+                display_text = f"{value} soat"
+            else:
+                reminder_minutes = value
+                display_text = f"{value} minut"
+            
+            # Database ga saqlash
+            query = "UPDATE org_settings SET reminder_interval_minutes = %s, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM org_settings ORDER BY id DESC LIMIT 1)"
+            self.db.execute_update(query, (reminder_minutes,))
+            
+            # Holatni tozalash
+            del self.user_states[user['id']]
+            if 'reminder_unit' in context.user_data:
+                del context.user_data['reminder_unit']
+            
+            # Audit log
+            self.db.add_audit_log(user['id'], 'SETTINGS_UPDATED', f"Ogohlantirish vaqti yangilandi: {display_text} ({reminder_minutes} minut)")
+            
+            text = f"""
+✅ <b>Ogohlantirish vaqti yangilandi!</b>
+
+🔔 <b>Yangi vaqt:</b> Har {display_text}da
+
+Ishchilarning vazifalari endi har {display_text}da qayta yuborilib ogohlantiriladi.
+            """
+            
+            reply_markup = self.create_back_button("settings_menu")
+            await self.send_message(update, context, text, reply_markup)
+            
+        except ValueError:
+            await self.send_message(update, context, "❌ Noto'g'ri format! Faqat raqam yuboring.")

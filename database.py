@@ -182,6 +182,18 @@ class Database:
             conn.commit()
             logger.info("Database jadvallari yaratildi yoki mavjud")
             
+            # Org_settings jadvaliga reminder_interval_minutes qo'shish (agar mavjud bo'lmasa)
+            try:
+                cursor.execute("""
+                    ALTER TABLE org_settings 
+                    ADD COLUMN IF NOT EXISTS reminder_interval_minutes INTEGER DEFAULT 180
+                """)
+                conn.commit()
+                logger.info("reminder_interval_minutes ustuni qo'shildi yoki mavjud")
+            except Exception as e:
+                logger.warning(f"reminder_interval_minutes ustuni qo'shishda xatolik (ehtimol allaqachon mavjud): {e}")
+                conn.rollback()
+            
             # Mavjud foydalanuvchilar sonini tekshirish
             cursor.execute("SELECT COUNT(*) FROM users")
             user_count = cursor.fetchone()[0]

@@ -248,6 +248,11 @@ class IshBot:
                 await self.settings_handler.handle_edit_penalty(update, context)
             elif data == "edit_work_hours":
                 await self.settings_handler.handle_edit_work_hours(update, context)
+            elif data == "edit_reminder":
+                await self.settings_handler.handle_edit_reminder(update, context)
+            elif data.startswith("reminder_unit_"):
+                await self.settings_handler.handle_reminder_unit_selection(update, context)
+                await self.settings_handler.handle_edit_work_hours(update, context)
             elif data.startswith("timezone_"):
                 await self.settings_handler.handle_timezone_selection(update, context)
             
@@ -325,6 +330,8 @@ class IshBot:
                 await self.settings_handler.handle_work_start_input(update, context)
             elif state == 'editing_work_end':
                 await self.settings_handler.handle_work_end_input(update, context)
+            elif state == 'editing_reminder_value':
+                await self.settings_handler.handle_reminder_value_input(update, context)
         
         else:
             # Oddiy xabar

@@ -87,9 +87,14 @@ class NotificationHandler:
             hours_remaining = time_remaining.total_seconds() / 3600
             
             if hours_remaining > 0:
-                # 3 soatlik eslatmalar
-                if hours_remaining <= REMINDER_INTERVAL_HOURS and task['status'] == 'IN_PROGRESS':
-                    await self.send_reminder_notification(task, hours_remaining)
+                # Sozlamadan interval olish
+                settings = self.db.get_org_settings()
+                reminder_interval_minutes = settings.get('reminder_interval_minutes', 180) if settings else 180  # Default 3 soat
+                reminder_interval_hours = reminder_interval_minutes / 60
+                
+                # Faol vazifalarni sozlamadan interval bo'yicha qayta yuborish
+                if task['status'] in ['IN_PROGRESS', 'SCHEDULED']:
+                    await self.check_periodic_reminder(task, reminder_interval_minutes)
                 
                 # Deadline yaqinlashganda eslatmalar
                 for warning_hours in DEADLINE_WARNING_HOURS:
@@ -183,6 +188,84 @@ Vazifani davom ettiring!
             
         except Exception as e:
             logger.error(f"Eslatma yuborishda xatolik: {e}")
+    
+    async def check_periodic_reminder(self, task: Dict[str, Any], interval_minutes: int):
+        """Sozlamadan interval bo'yicha vazifalarni qayta yuborish"""
+        try:
+            # Vazifaning yaratilgan vaqtini olish
+            now = get_uzbek_time()
+            created_at = datetime.fromisoformat(task['created_at']) if isinstance(task['created_at'], str) else task['created_at']
+            if created_at.tzinfo is None:
+                from pytz import timezone
+                created_at = timezone('Asia/Tashkent').localize(created_at)
+            
+            # Vaqt farqini minutlarda hisoblash
+            time_since_created = (now - created_at).total_seconds() / 60
+            
+            # Agar interval o'tgan bo'lsa va interval ga bo'linadigan bo'lsa, ogohlantirish yuborish
+            # Har minut tekshiriladi, lekin faqat interval ga bo'linadigan vaqtda yuboriladi
+            if time_since_created >= interval_minutes:
+                # Interval ga bo'linadigan vaqtda yuborish
+                intervals_passed = int(time_since_created / interval_minutes)
+                # Faqat yangi interval boshlanganda yuborish (1 minut ichida)
+                if intervals_passed > 0 and (time_since_created % interval_minutes) < 1:
+                    await self.send_periodic_task_reminder(task, interval_minutes)
+                
+        except Exception as e:
+            logger.error(f"Periodik eslatmani tekshirishda xatolik: {e}")
+    
+    async def send_periodic_task_reminder(self, task: Dict[str, Any], interval_minutes: int):
+        """Periodik vazifa eslatmasini yuborish"""
+        try:
+            if not self.bot:
+                logger.error("Bot None, eslatma yuborib bo'lmadi")
+                return
+            
+            time_text = calculate_time_remaining(task['deadline'])
+            priority_emoji = get_priority_emoji(task['priority'])
+            status_emoji = get_status_emoji(task['status'])
+            
+            # Intervalni formatlash
+            interval_hours = interval_minutes // 60
+            interval_mins = interval_minutes % 60
+            if interval_hours > 0 and interval_mins > 0:
+                interval_text = f"{interval_hours} soat {interval_mins} minut"
+            elif interval_hours > 0:
+                interval_text = f"{interval_hours} soat"
+            else:
+                interval_text = f"{interval_mins} minut"
+            
+            text = f"""
+🔔 <b>Vazifa eslatmasi</b>
+
+📝 <b>Vazifa:</b> {task['title']}
+{status_emoji} <b>Holat:</b> {task['status']}
+{priority_emoji} <b>Ustuvorlik:</b> {task['priority']}
+⏰ <b>Deadline:</b> {format_datetime(task['deadline'])}
+⏱ <b>Qolgan vaqt:</b> {time_text}
+
+<i>Bu eslatma har {interval_text}da yuboriladi.</i>
+
+Vazifani davom ettiring!
+            """
+            
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = [
+                [InlineKeyboardButton("👁 Vazifani ko'rish", callback_data=f"view_task_{task['id']}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await self.bot.send_message(
+                chat_id=task['telegram_id'],
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode='HTML'
+            )
+            
+            logger.info(f"Periodik eslatma yuborildi: {task['title']} -> {task.get('assigned_name', 'Noma\'lum')}")
+            
+        except Exception as e:
+            logger.error(f"Periodik eslatma yuborishda xatolik: {e}")
     
     async def send_deadline_warning(self, task: Dict[str, Any], hours: int):
         """Deadline yaqinlashganda eslatma"""

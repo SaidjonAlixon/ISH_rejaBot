@@ -278,9 +278,13 @@ Ishchini tanlang:
             
             # Ishchiga xabar yuborish (telegram_id bo'yicha)
             if assignee_telegram_id:
-                await self.notify_worker_task_assigned(assignee_telegram_id, task_id, title, deadline, context)
+                logger.info(f"Vazifa biriktirilgan ishchiga xabar yuborilmoqda: {assignee_name} (Telegram ID: {assignee_telegram_id})")
+                try:
+                    await self.notify_worker_task_assigned(assignee_telegram_id, task_id, title, deadline, context)
+                except Exception as notify_error:
+                    logger.error(f"Xabar yuborishda xatolik: {notify_error}", exc_info=True)
             else:
-                logger.error(f"Ishchining telegram_id topilmadi: {worker_id}")
+                logger.error(f"⚠️ Ishchining telegram_id topilmadi: {worker_id} (Ishchi: {assignee_name})")
             
         except Exception as e:
             logger.error(f"Vazifa yaratishda xatolik: {e}")
@@ -289,9 +293,19 @@ Ishchini tanlang:
     async def notify_worker_task_assigned(self, worker_telegram_id: int, task_id: str, task_title: str, task_deadline: str, context: ContextTypes.DEFAULT_TYPE):
         """Ishchiga yangi vazifa tayinlanganini xabar qilish"""
         try:
+            # Bot tekshiruvi
+            if not context or not hasattr(context, 'bot') or not context.bot:
+                logger.error("Context yoki bot None!")
+                return
+            
             worker = self.db.get_user_by_telegram_id(worker_telegram_id)
             if not worker:
                 logger.error(f"Ishchi topilmadi: {worker_telegram_id}")
+                return
+            
+            # Ishchi faol emas bo'lsa, xabar yubormaslik
+            if not worker.get('is_active', True):
+                logger.info(f"Ishchi faol emas, xabar yuborilmaydi: {worker['full_name']}")
                 return
 
             notification_text = f"""
@@ -316,10 +330,10 @@ Vazifani bajarishni boshlang!
                 parse_mode='HTML'
             )
             
-            logger.info(f"Vazifa xabari yuborildi ishchiga: {worker['full_name']}")
+            logger.info(f"✅ Vazifa xabari yuborildi ishchiga: {worker['full_name']} (ID: {worker_telegram_id})")
             
         except Exception as e:
-            logger.error(f"Ishchiga xabar yuborishda xatolik: {e}")
+            logger.error(f"❌ Ishchiga xabar yuborishda xatolik: {e}", exc_info=True)
     
     async def handle_tasks_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Vazifalar menyusi"""
