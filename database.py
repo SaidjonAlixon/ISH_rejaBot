@@ -462,11 +462,30 @@ class Database:
     
     def create_org_settings(self, org_name: str) -> int:
         """Tashkilot sozlamalarini yaratish"""
-        query = """
-            INSERT INTO org_settings (org_name) VALUES (%s) RETURNING id
-        """
-        result = self.execute_query(query, (org_name,))
-        return result[0]['id'] if result else 0
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            query = """
+                INSERT INTO org_settings (org_name) VALUES (%s) RETURNING id
+            """
+            cursor.execute(query, (org_name,))
+            result = cursor.fetchone()
+            settings_id = result['id'] if result else None
+            conn.commit()
+            
+            if not settings_id:
+                raise Exception("Tashkilot sozlamalari yaratib bo'lmadi")
+            
+            return settings_id
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Tashkilot sozlamalari yaratishda xatolik: {e}")
+            raise
+        finally:
+            if conn:
+                self.return_connection(conn)
     
     def get_task_resubmit_count(self, task_id: str) -> int:
         """Vazifaning qayta yuborilish sonini olish"""
