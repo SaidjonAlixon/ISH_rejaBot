@@ -269,7 +269,7 @@ class IshBot:
                 tasks = self.export_handler.get_tasks_by_user(user_id)
                 file_data = self.export_handler.create_xlsx_export(tasks)
                 filename = f"ishchi_vazifalar_{user_id}_{update.effective_user.id}.xlsx"
-                await self.export_handler.send_file(update, context, file_data, filename, export_type)
+                await self.export_handler.send_file(update, context, file_data, filename, export_type, task_count=len(tasks))
             
             # Audit handlers
             elif data == "audit_log":

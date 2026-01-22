@@ -93,7 +93,7 @@ Qanday ma'lumotlarni eksport qilmoqchisiz?
             
             # Faylni yuborish
             logger.info("Sending file...")
-            await self.send_file(update, context, file_data, filename, export_type)
+            await self.send_file(update, context, file_data, filename, export_type, task_count=len(tasks))
             logger.info("File sent successfully!")
             
             # Audit log
@@ -461,18 +461,61 @@ Statusni tanlang:
     
     
     async def send_file(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                       file_data: bytes, filename: str, file_type: str):
+                       file_data: bytes, filename: str, file_type: str, task_count: int = None):
         """Faylni yuborish"""
         try:
             logger.info(f"send_file called: filename={filename}, file_type={file_type}, data_size={len(file_data)}")
             if file_type == 'xlsx':
                 from telegram import InputFile
+                from utils import format_datetime
+                
+                # Fayl hajmini hisoblash
+                file_size_kb = len(file_data) / 1024
+                file_size_mb = file_size_kb / 1024
+                
+                if file_size_mb >= 1:
+                    size_text = f"{file_size_mb:.2f} MB"
+                else:
+                    size_text = f"{file_size_kb:.2f} KB"
+                
+                # Hozirgi vaqt
+                current_time = format_datetime(datetime.now())
+                
+                # Chiroyli caption yaratish
+                caption = f"""
+✅ <b>Eksport muvaffaqiyatli yakunlandi!</b>
+
+━━━━━━━━━━━━━━━━━━━━
+📊 <b>Ma'lumotlar:</b>
+━━━━━━━━━━━━━━━━━━━━
+
+📁 <b>Fayl nomi:</b>
+<code>{filename}</code>
+
+📊 <b>Format:</b> XLSX (Excel)
+
+💾 <b>Fayl hajmi:</b> {size_text}
+"""
+                
+                # Agar vazifalar soni berilgan bo'lsa
+                if task_count is not None:
+                    caption += f"📋 <b>Vazifalar soni:</b> {task_count} ta\n"
+                
+                caption += f"""
+🕐 <b>Eksport vaqti:</b> {current_time}
+
+━━━━━━━━━━━━━━━━━━━━
+💡 <b>Eslatma:</b> Faylni ochish uchun yuklab oling
+━━━━━━━━━━━━━━━━━━━━
+"""
+                
                 document = InputFile(io.BytesIO(file_data), filename=filename)
                 logger.info(f"Sending document to chat_id={update.effective_chat.id}")
                 await context.bot.send_document(
                     chat_id=update.effective_chat.id,
                     document=document,
-                    caption=f"📊 <b>Eksport tayyor!</b>\n\n📁 <b>Fayl:</b> {filename}\n📊 <b>Format:</b> XLSX"
+                    caption=caption,
+                    parse_mode='HTML'
                 )
                 logger.info("Document sent successfully!")
         except Exception as e:
