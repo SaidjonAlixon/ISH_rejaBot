@@ -595,7 +595,7 @@ Quyidagi bo'limlardan birini tanlang:
 • Jarima qilingan vazifalar: {penalized_count} ta
 
 📅 <b>Oxirgi faollik:</b>
-• Oxirgi vazifa: {format_datetime(all_tasks[0]['created_at']) if all_tasks else 'Yo\'q'}
+• Oxirgi vazifa: {format_datetime(all_tasks[0]['created_at']) if all_tasks else "Yo'q"}
         """
         
         keyboard = [
@@ -619,7 +619,7 @@ Quyidagi bo'limlardan birini tanlang:
 
 📝 <b>Ism familiya:</b> {user['full_name']}
 🆔 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>
-📱 <b>Username:</b> @{user['username'] or 'Yo\'q'}
+📱 <b>Username:</b> @{user['username'] or "Yo'q"}
 📞 <b>Telefon:</b> {mask_phone_number(user['phone']) if user['phone'] else 'Kiritilmagan'}
 🎭 <b>Rol:</b> 👷 Ishchi
 ✅ <b>Holat:</b> {'Faol' if user['is_active'] else 'Nofaol'}
