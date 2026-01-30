@@ -1509,16 +1509,20 @@ Iltimos, uzaytirish sababini yozing (izoh):
             old_deadline = task['deadline']
             self.db.update_task_deadline(task_id, new_deadline)
             
-            # Deadline uzaytirish tarixini saqlash
-            from datetime import datetime
-            old_dt = datetime.strptime(old_deadline, "%Y-%m-%d %H:%M:%S")
+            # Bazadan datetime yoki string kelishi mumkin; datetime ga normalize qilamiz
+            if isinstance(old_deadline, datetime):
+                old_dt = old_deadline
+                old_deadline_str = old_dt.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                old_dt = datetime.strptime(str(old_deadline), "%Y-%m-%d %H:%M:%S")
+                old_deadline_str = str(old_deadline)
             new_dt = datetime.strptime(new_deadline, "%Y-%m-%d %H:%M:%S")
             extension_hours = int((new_dt - old_dt).total_seconds() / 3600)
             
             self.db.add_deadline_extension(
                 task_id=task_id,
                 extended_by=user['id'],
-                old_deadline=old_deadline,
+                old_deadline=old_deadline_str,
                 new_deadline=new_deadline,
                 extension_hours=extension_hours,
                 reason=comment
