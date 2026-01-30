@@ -1,5 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from telegram.error import BadRequest
 from config import UserRole
 from utils import format_datetime, get_uzbek_time
 import logging
@@ -27,19 +28,30 @@ class ResubmitHandler:
     
     async def send_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, reply_markup=None):
         """Xabar yuborish"""
-        if update.callback_query:
-            await update.callback_query.edit_message_text(
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode='HTML'
-            )
-        else:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode='HTML'
-            )
+        try:
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+        except BadRequest as e:
+            # "Message is not modified" xatosini ignore qilish
+            if "message is not modified" in str(e).lower():
+                logger.debug(f"Xabar o'zgarishsiz: {e}")
+            else:
+                logger.error(f"Xabar yuborishda xatolik: {e}")
+                raise
+        except Exception as e:
+            logger.error(f"Xabar yuborishda xatolik: {e}")
+            raise
     
     async def handle_resubmit_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Vazifani qayta yuborish"""

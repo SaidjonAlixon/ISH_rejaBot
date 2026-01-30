@@ -1,5 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from telegram.error import BadRequest
 from database import Database
 from config import UserRole
 import logging
@@ -77,6 +78,12 @@ class BaseHandler:
                     reply_markup=reply_markup,
                     parse_mode='HTML'
                 )
+        except BadRequest as e:
+            # "Message is not modified" xatosini ignore qilish
+            if "message is not modified" in str(e).lower():
+                logger.debug(f"Xabar o'zgarishsiz: {e}")
+            else:
+                logger.error(f"Xabar yuborishda xatolik: {e}")
         except Exception as e:
             logger.error(f"Xabar yuborishda xatolik: {e}")
     
