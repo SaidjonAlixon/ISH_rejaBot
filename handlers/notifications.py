@@ -129,9 +129,9 @@ class NotificationHandler:
             overdue_tasks = self.db.get_overdue_tasks()
             
             for task in overdue_tasks:
-                if task['status'] != 'OVERDUE':
-                    # Statusni OVERDUE ga o'zgartirish
-                    self.db.update_task_status(task['id'], 'OVERDUE')
+                if task['status'] != TaskStatus.OVERDUE:
+                    # Statusni MUDDATI_OTGAN ga o'zgartirish (TaskStatus.OVERDUE = 'MUDDATI_OTGAN')
+                    self.db.update_task_status(task['id'], TaskStatus.OVERDUE)
                     
                     # Jarima qo'shish
                     if not task['is_penalized']:
